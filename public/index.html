@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kethercraft Stock Market</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Kethercraft Stock Market</h1>
+      <p class="status" id="status" role="status" aria-live="polite">Connecting to market…</p>
+    </header>
+    <div class="layout">
+      <div class="block">
+        <div class="list" id="list"></div>
+      </div>
+      <div>
+        <div class="block">
+          <div class="top">
+            <div>
+              <div class="sym detail-symbol" id="dSym"></div>
+              <div class="nm" id="dName"></div>
+            </div>
+          </div>
+          <div class="big" id="dPrice"></div>
+          <canvas id="chart" width="800" height="280" aria-label="Price chart"></canvas>
+          <div class="stats" id="stats"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+<script src="script.js" defer></script>
+</body>
+</html>
