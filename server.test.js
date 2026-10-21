@@ -53,3 +53,7 @@ test("app serves the market page and static assets", async () => {
   assert.match(await page.text(), /Kethercraft Stock Market/);
   assert.equal(script.status, 200);
 });
+
+test("Vercel market function exports a request handler", () => {
+  assert.equal(typeof require("./api/market"), "function");
+});

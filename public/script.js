@@ -1,5 +1,6 @@
 const HISTORY_LIMIT = 120;
 const DAY_LENGTH = 24 * 60 * 60 * 1000;
+const MARKET_REQUEST_TIMEOUT = 15000;
 let items = [];
 let selectedIndex = 0;
 
@@ -119,9 +120,14 @@ async function loadMarket() {
   const status = $("status");
   status.className = "status";
   status.textContent = "Loading market prices…";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch("/api/market", { cache: "no-store" });
+    const response = await fetch("/api/market", {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || `Market API returned ${response.status}`);
@@ -144,7 +150,11 @@ async function loadMarket() {
   } catch (error) {
     console.error("Unable to load market prices:", error);
     status.className = "status error";
-    status.textContent = "Unable to load market prices. Check the server connection and try again.";
+    status.textContent = error.name === "AbortError"
+      ? "Market request timed out. Check the server connection and try again."
+      : "Unable to load market prices. Check the server connection and try again.";
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
