@@ -47,6 +47,17 @@ function utcDateString(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function isValidMarketDate(value, today) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || utcDateString(date) !== value) return false;
+  if (value < MARKET_START_DATE) return false;
+
+  const tomorrow = new Date(`${today}T00:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  return value <= utcDateString(tomorrow);
+}
+
 async function connectDatabase() {
   const { MONGODB_URI, MONGODB_DB } = process.env;
   if (!MONGODB_URI) {
@@ -125,8 +136,17 @@ function createMarketHandler({
     }
 
     try {
+      const today = utcDateString(clock());
+      const requestedDate = new URL(req.url, "http://localhost").searchParams.get("date");
+      if (requestedDate && !isValidMarketDate(requestedDate, today)) {
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Date must be valid and no later than tomorrow (UTC)" }));
+        return;
+      }
+
       await connect();
-      const data = await getMarketData(dailyMoves, utcDateString(clock()));
+      const data = await getMarketData(dailyMoves, requestedDate || today);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.statusCode = 200;
@@ -140,4 +160,4 @@ function createMarketHandler({
   };
 }
 
-module.exports = { createMarketHandler, getMarketData, utcDateString };
+module.exports = { createMarketHandler, getMarketData, isValidMarketDate, utcDateString };

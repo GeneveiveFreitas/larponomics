@@ -124,7 +124,11 @@ async function loadMarket() {
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch("/api/market", {
+    const previewDate = new URLSearchParams(window.location.search).get("date");
+    const endpoint = previewDate
+      ? `/api/market?date=${encodeURIComponent(previewDate)}`
+      : "/api/market";
+    const response = await fetch(endpoint, {
       cache: "no-store",
       signal: controller.signal,
     });

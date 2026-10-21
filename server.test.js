@@ -62,3 +62,19 @@ test("app serves the market page and static assets", async () => {
 test("Vercel market function exports a request handler", () => {
   assert.equal(typeof require("./api/market"), "function");
 });
+
+test("market endpoint can preview tomorrow's scheduled prices", async () => {
+  const response = await fetch(`${baseUrl}/api/market?date=2026-10-22`);
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.date, "2026-10-22");
+});
+
+test("market endpoint rejects previews beyond tomorrow", async () => {
+  const response = await fetch(`${baseUrl}/api/market?date=2026-10-23`);
+  const result = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.match(result.error, /no later than tomorrow/);
+});
