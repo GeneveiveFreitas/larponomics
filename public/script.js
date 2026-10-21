@@ -151,7 +151,12 @@ async function loadMarket() {
     selectedIndex = Math.min(selectedIndex, items.length - 1);
     buildList();
     render();
-    status.textContent = `Market prices for ${result.date}`;
+    if (result.scheduleAvailable) {
+      status.textContent = `Market prices for ${result.date}`;
+    } else {
+      status.className = "status error";
+      status.textContent = `No price schedule found for ${result.date}; prices are unchanged. Add a daily_moves record for this date in MongoDB.`;
+    }
   } catch (error) {
     console.error("Unable to load market prices:", error);
     status.className = "status error";

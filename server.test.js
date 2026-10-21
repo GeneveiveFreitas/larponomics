@@ -42,6 +42,7 @@ test("market endpoint returns scheduled prices and history", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(result.date, "2026-10-21");
+  assert.equal(result.scheduleAvailable, true);
   assert.ok(Math.abs(stockA.price - 1854.36) < 1e-9);
   assert.equal(stockB.price, 1200);
   assert.equal(stockA.history.length, 120);
@@ -69,6 +70,8 @@ test("market endpoint can preview tomorrow's scheduled prices", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(result.date, "2026-10-22");
+  assert.equal(result.scheduleAvailable, false);
+  assert.equal(result.stocks.find((stock) => stock.symbol === "A").dailyChange, 0);
 });
 
 test("market endpoint rejects previews beyond tomorrow", async () => {

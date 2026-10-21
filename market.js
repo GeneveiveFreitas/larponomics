@@ -104,6 +104,7 @@ async function getMarketData(dailyMoves, today) {
 
   return {
     date: today,
+    scheduleAvailable: movesByDate.has(today),
     stocks: STOCKS.map((stock) => {
       const history = historyBySymbol.get(stock.symbol);
       const previousPrice = history.length > 1
