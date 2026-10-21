@@ -2,7 +2,10 @@ const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
 const { createApp } = require("./server");
 
-const storedSchedules = [{ date: "2026-01-02", moves: { A: 2 } }];
+const storedSchedules = [
+  { date: "2026-10-20", moves: { A: 2 } },
+  { date: "2026-10-21", moves: { A: 1 } },
+];
 const dailyMoves = {
   find() {
     return { lean: async () => storedSchedules };
@@ -14,7 +17,7 @@ let baseUrl;
 before(async () => {
   const app = createApp({
     dailyMoves,
-    clock: () => new Date("2026-01-03T00:00:00.000Z"),
+    clock: () => new Date("2026-10-21T00:00:00.000Z"),
     connect: async () => {},
   });
   server = app.listen(0);
@@ -38,11 +41,13 @@ test("market endpoint returns scheduled prices and history", async () => {
   const stockB = result.stocks.find((stock) => stock.symbol === "B");
 
   assert.equal(response.status, 200);
-  assert.equal(result.date, "2026-01-03");
-  assert.equal(stockA.price, 1836);
+  assert.equal(result.date, "2026-10-21");
+  assert.ok(Math.abs(stockA.price - 1854.36) < 1e-9);
   assert.equal(stockB.price, 1200);
-  assert.equal(stockA.history.length, 3);
-  assert.equal(stockA.history[1], 1836);
+  assert.equal(stockA.history.length, 120);
+  assert.equal(stockA.history.at(-2), 1836);
+  assert.ok(Math.abs(stockA.dailyChange - 1) < 1e-9);
+  assert.equal(stockB.dailyChange, 0);
 });
 
 test("app serves the market page and static assets", async () => {

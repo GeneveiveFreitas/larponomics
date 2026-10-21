@@ -36,9 +36,9 @@ function updateList() {
   items.forEach((item, index) => {
     $(`price-${index}`).textContent = formatPrice(item.price);
 
-    const change = (item.price / item.initial - 1) * 100;
+    const change = item.dailyChange;
     const changeElement = $(`change-${index}`);
-    changeElement.textContent = (change >= 0 ? "▲ " : "▼ ") + Math.abs(change).toFixed(1) + "%";
+    changeElement.textContent = (change >= 0 ? "▲ " : "▼ ") + Math.abs(change).toFixed(2) + "%";
     changeElement.className = "chg " + (change >= 0 ? "up" : "down");
     $(`stock-${index}`).classList.toggle("sel", index === selectedIndex);
   });
@@ -98,11 +98,11 @@ function render() {
   $("dSym").textContent = item.symbol;
   $("dName").textContent = item.name;
 
-  const change = (item.price / item.initial - 1) * 100;
+  const change = item.dailyChange;
   $("dPrice").innerHTML =
     formatPrice(item.price) +
     ' <span class="price-change ' + (change >= 0 ? "up" : "down") + '">' +
-    (change >= 0 ? "+" : "") + change.toFixed(1) + "%</span>";
+    (change >= 0 ? "+" : "") + change.toFixed(2) + "%</span>";
 
   $("stats").innerHTML = [
     ["High", Math.max(...item.history)],
@@ -141,6 +141,7 @@ async function loadMarket() {
       name: stock.name,
       price: stock.price,
       initial: stock.initial,
+      dailyChange: stock.dailyChange,
       history: stock.history.slice(-HISTORY_LIMIT),
     }));
     selectedIndex = Math.min(selectedIndex, items.length - 1);

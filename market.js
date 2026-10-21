@@ -93,13 +93,21 @@ async function getMarketData(dailyMoves, today) {
 
   return {
     date: today,
-    stocks: STOCKS.map((stock) => ({
-      symbol: stock.symbol,
-      name: stock.name,
-      initial: stock.initial,
-      price: prices.get(stock.symbol),
-      history: historyBySymbol.get(stock.symbol).slice(-HISTORY_LIMIT),
-    })),
+    stocks: STOCKS.map((stock) => {
+      const history = historyBySymbol.get(stock.symbol);
+      const previousPrice = history.length > 1
+        ? history[history.length - 2]
+        : prices.get(stock.symbol);
+
+      return {
+        symbol: stock.symbol,
+        name: stock.name,
+        initial: stock.initial,
+        price: prices.get(stock.symbol),
+        dailyChange: (prices.get(stock.symbol) / previousPrice - 1) * 100,
+        history: history.slice(-HISTORY_LIMIT),
+      };
+    }),
   };
 }
 
