@@ -78,7 +78,7 @@ async function connectDatabase() {
 
   if (mongoose.connection.readyState === 1) return;
   if (mongoose.connection.readyState !== 2 || !connectionPromise) {
-    const options = MONGODB_DB ? { dbName: MONGODB_DB } : {};
+    const options = { dbName: MONGODB_DB || "larponomics" };
     connectionPromise = mongoose.connect(MONGODB_URI, options).catch((error) => {
       connectionPromise = undefined;
       throw error;
