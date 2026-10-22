@@ -83,6 +83,25 @@ h1 {
   overflow-y: auto;
 }
 
+.list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.list-controls select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

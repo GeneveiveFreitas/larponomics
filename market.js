@@ -30,6 +30,18 @@ const STOCKS = [
   { symbol: "W", name: "W Corp", initial: 100 },
   { symbol: "X", name: "X Corp", initial: 100 },
   { symbol: "Y", name: "Y Corp", initial: 300 },
+  { symbol: "HANA", name: "Hana Association", initial: 300 },
+  { symbol: "ZWEI", name: "Zwei Association", initial: 300 },
+  { symbol: "TRES", name: "Tres Association", initial: 300 },
+  { symbol: "SHI", name: "Shi Association", initial: 300 },
+  { symbol: "CINQ", name: "Cinq Association", initial: 300 },
+  { symbol: "LIU", name: "Liu Association", initial: 300 },
+  { symbol: "SEVEN", name: "Seven Association", initial: 300 },
+  { symbol: "EIGHT", name: "Eight Association", initial: 300 },
+  { symbol: "DEVYAT", name: "Devyat Association", initial: 300 },
+  { symbol: "DIECI", name: "Dieci Association", initial: 300 },
+  { symbol: "OUFI", name: "Oufi Association", initial: 300 },
+  { symbol: "GILDED", name: "Gilded City", initial: 200 },
 ];
 
 const dailyMoveSchema = new mongoose.Schema(

@@ -3,9 +3,16 @@ const DAY_LENGTH = 24 * 60 * 60 * 1000;
 const MARKET_REQUEST_TIMEOUT = 15000;
 let items = [];
 let selectedIndex = 0;
+let priceSort = "asc";
 
 const $ = (id) => document.getElementById(id);
 const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
+
+function sortItems() {
+  const selectedSymbol = items[selectedIndex]?.symbol;
+  items.sort((a, b) => priceSort === "asc" ? a.price - b.price : b.price - a.price);
+  selectedIndex = Math.max(0, items.findIndex((item) => item.symbol === selectedSymbol));
+}
 
 function buildList() {
   const list = $("list");
@@ -140,6 +147,7 @@ async function loadMarket() {
       throw new Error("Market API returned no stock data");
     }
 
+    const selectedSymbol = items[selectedIndex]?.symbol;
     items = result.stocks.map((stock) => ({
       symbol: stock.symbol,
       name: stock.name,
@@ -148,7 +156,9 @@ async function loadMarket() {
       dailyChange: stock.dailyChange,
       history: stock.history.slice(-HISTORY_LIMIT),
     }));
-    selectedIndex = Math.min(selectedIndex, items.length - 1);
+    selectedIndex = items.findIndex((item) => item.symbol === selectedSymbol);
+    if (selectedIndex === -1) selectedIndex = 0;
+    sortItems();
     buildList();
     render();
     if (result.scheduleAvailable) {
@@ -178,6 +188,13 @@ function scheduleNextUpdate() {
 
 window.addEventListener("resize", () => {
   if (items.length) drawChart();
+});
+
+$("price-sort").addEventListener("change", (event) => {
+  priceSort = event.target.value;
+  sortItems();
+  buildList();
+  render();
 });
 
 document.addEventListener("visibilitychange", () => {
