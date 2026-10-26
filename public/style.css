@@ -40,6 +40,43 @@ header {
   margin-bottom: 24px;
 }
 
+.account-bar,
+#account-user {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#account-user[hidden] {
+  display: none;
+}
+
+#account-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.account-button,
+#logout-button {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.account-button:hover,
+#logout-button:hover {
+  background: var(--panel-muted);
+}
+
 h1 {
   margin: 0;
   font-size: clamp(36px, 3vw, 32px);
@@ -81,6 +118,65 @@ h1 {
   gap: 8px;
   max-height: min(720px, calc(100vh - 160px));
   overflow-y: auto;
+}
+
+.invest-panel {
+  margin-top: 16px;
+  padding: 18px;
+}
+
+.invest-panel h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.invest-panel p {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.invest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.invest-actions button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.invest-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+#invest-message.error {
+  color: var(--red);
+}
+
+.account-holdings {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.account-holdings h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.account-holdings p {
+  margin: 6px 0 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .list-controls {

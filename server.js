@@ -3,6 +3,7 @@ require("dotenv").config();
 const path = require("node:path");
 const express = require("express");
 const { createMarketHandler } = require("./market");
+const { createAccountRouter } = require("./account");
 
 const PORT = Number(process.env.PORT || 3000);
 const publicDirectory = path.join(__dirname, "public");
@@ -10,6 +11,8 @@ const publicDirectory = path.join(__dirname, "public");
 function createApp(options) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(express.json({ limit: "4kb" }));
+  app.use(createAccountRouter(options?.accountOptions));
   app.get("/api/market", createMarketHandler(options));
   app.use(express.static(publicDirectory));
   app.use((req, res) => {

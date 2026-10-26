@@ -42,6 +42,8 @@ const STOCKS = [
   { symbol: "DIECI", name: "Dieci Association", initial: 300 },
   { symbol: "OUFI", name: "Oufi Association", initial: 300 },
   { symbol: "GILDED", name: "Gilded City", initial: 200 },
+  { symbol: "DODEKA", name: "Dodeka Association", initial: 300 },
+  { symbol: "LATERANO", name: "Laterano", initial: 200 },
 ];
 
 const dailyMoveSchema = new mongoose.Schema(
@@ -173,4 +175,11 @@ function createMarketHandler({
   };
 }
 
-module.exports = { createMarketHandler, getMarketData, isValidMarketDate, utcDateString };
+module.exports = {
+  createMarketHandler,
+  connectDatabase,
+  getMarketData,
+  isValidMarketDate,
+  STOCKS,
+  utcDateString,
+};

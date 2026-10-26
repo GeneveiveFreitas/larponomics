@@ -64,6 +64,10 @@ test("Vercel market function exports a request handler", () => {
   assert.equal(typeof require("./api/market"), "function");
 });
 
+test("Vercel account function exports a request handler", () => {
+  assert.equal(typeof require("./api/[...path]"), "function");
+});
+
 test("market endpoint can preview tomorrow's scheduled prices", async () => {
   const response = await fetch(`${baseUrl}/api/market?date=2026-10-22`);
   const result = await response.json();
