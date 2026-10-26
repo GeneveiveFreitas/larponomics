@@ -37,8 +37,8 @@ async function loadAccount() {
   } catch (error) {
     console.error("Unable to load account:", error);
     account = null;
-    $("status").classList.add("error");
-    $("status").textContent = "Unable to load your account. Please refresh and try again.";
+    $("market-message").classList.add("error");
+    $("market-message").textContent = "Unable to load your account. Please refresh and try again.";
   } finally {
     accountLoading = false;
     renderAccount();
@@ -161,9 +161,6 @@ function render() {
 }
 
 async function loadMarket() {
-  const status = $("status");
-  status.className = "status";
-  status.textContent = "Loading market prices…";
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
@@ -194,11 +191,12 @@ async function loadMarket() {
     sortItems();
     buildList();
     render();
-    status.textContent = `Market prices for ${result.date}`;
+    $("market-message").classList.remove("error");
+    $("market-message").textContent = "";
   } catch (error) {
     console.error("Unable to load market prices:", error);
-    status.className = "status error";
-    status.textContent = error.name === "AbortError"
+    $("market-message").classList.add("error");
+    $("market-message").textContent = error.name === "AbortError"
       ? "Market request timed out. Check the server connection and try again."
       : "Unable to load market prices. Check the server connection and try again.";
   } finally {
@@ -236,13 +234,13 @@ $("logout-button").addEventListener("click", async () => {
       throw new Error(result.error || "Unable to sign out");
     }
     account = null;
-    $("status").classList.remove("error");
-    $("status").textContent = "Signed out.";
+    $("market-message").classList.remove("error");
+    $("market-message").textContent = "Signed out.";
     renderAccount();
   } catch (error) {
     console.error("Unable to sign out:", error);
-    $("status").classList.add("error");
-    $("status").textContent = error.message;
+    $("market-message").classList.add("error");
+    $("market-message").textContent = error.message;
   }
 });
 

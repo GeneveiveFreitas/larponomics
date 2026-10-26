@@ -119,7 +119,6 @@ async function loadPage() {
     account = result;
   }
   accountLoading = false;
-  $("status").textContent = `Prices from ${market.date}. Up-votes raise prices; down-votes lower them.`;
   $("vote-message").textContent = account?.daily.submitted
     ? "You have already submitted today’s votes. Come back after midnight UTC."
     : account
@@ -146,7 +145,6 @@ async function submitVotes() {
     stocks = result.market.stocks;
     allocations = { up: {}, down: {} };
     $("vote-message").textContent = "Votes submitted. Stock prices have been updated.";
-    $("status").textContent = `Prices updated in the database (${result.market.date}).`;
   } catch (error) {
     $("vote-message").classList.add("error");
     $("vote-message").textContent = error.message;
@@ -172,8 +170,8 @@ $("logout-button").addEventListener("click", async () => {
 
 loadPage().catch((error) => {
   accountLoading = false;
-  $("status").classList.add("error");
-  $("status").textContent = error.message;
+  $("vote-message").classList.add("error");
+  $("vote-message").textContent = error.message;
   renderAccount();
 });
 

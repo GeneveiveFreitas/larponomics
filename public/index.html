@@ -9,20 +9,21 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Kethercraft Stock Market</h1>
-      <p class="status" id="status" role="status" aria-live="polite">Connecting to market…</p>
-      <nav class="site-nav" aria-label="Main navigation">
-        <a class="active" href="/">Market</a>
-        <a href="/votes.html">Vote on prices</a>
-      </nav>
-      <div class="account-bar">
-        <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>
-        <div id="account-user" hidden>
-          <img id="account-avatar" alt="" hidden>
-          <span id="account-username"></span>
-          <button id="logout-button" type="button">Sign out</button>
+      <div class="header-top">
+        <nav class="site-nav" aria-label="Main navigation">
+          <a class="active" href="/">Market</a>
+          <a href="/votes.html">Vote on prices</a>
+        </nav>
+        <div class="account-bar">
+          <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>
+          <div id="account-user" hidden>
+            <img id="account-avatar" alt="" hidden>
+            <span id="account-username"></span>
+            <button id="logout-button" type="button">Sign out</button>
+          </div>
         </div>
       </div>
+      <h1>Kethercraft Stock Market</h1>
     </header>
     <div class="layout">
       <div class="block">
@@ -33,6 +34,7 @@
             <option value="desc">Highest first</option>
           </select>
         </div>
+        <p class="market-message" id="market-message" role="status" aria-live="polite"></p>
         <div class="list" id="list"></div>
       </div>
       <div>

@@ -40,13 +40,28 @@ header {
   margin-bottom: 24px;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #000;
+  margin-bottom: 20px;
+}
+
+.header-top #account-user {
+  color: #fff;
+}
+
 .account-bar,
 #account-user {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 10px;
-  margin-top: 12px;
+  margin: 0;
 }
 
 #account-user[hidden] {
@@ -79,23 +94,22 @@ header {
 
 .site-nav {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
 }
 
 .site-nav a {
   padding: 7px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid #444;
   border-radius: 8px;
-  color: var(--text);
+  color: #fff;
   text-decoration: none;
 }
 
 .site-nav a.active,
 .site-nav a:hover {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: #888;
+  background: #292929;
 }
 
 h1 {
@@ -114,6 +128,16 @@ h1 {
 }
 
 .status.error {
+  color: var(--red);
+}
+
+.market-message {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.market-message.error {
   color: var(--red);
 }
 
@@ -415,6 +439,33 @@ canvas {
 }
 
 @media (max-width: 480px) {
+  .header-top {
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .site-nav {
+    gap: 5px;
+  }
+
+  .site-nav a {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .account-bar,
+  #account-user {
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .account-button,
+  #logout-button {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
   .block {
     padding: 16px;
   }
