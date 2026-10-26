@@ -64,8 +64,48 @@ test("Vercel market function exports a request handler", () => {
   assert.equal(typeof require("./api/market"), "function");
 });
 
-test("Vercel account function exports a request handler", () => {
-  assert.equal(typeof require("./api/[...path]"), "function");
+test("Vercel account endpoints export request handlers", () => {
+  for (const endpoint of [
+    "./api/account",
+    "./api/account/purchases",
+    "./api/auth/discord",
+    "./api/auth/discord/callback",
+    "./api/auth/logout",
+  ]) {
+    assert.equal(typeof require(endpoint), "function");
+  }
+});
+
+test("Vercel Discord sign-in endpoint routes to the account handler", async () => {
+  const configurationKeys = [
+    "DISCORD_CLIENT_ID",
+    "DISCORD_CLIENT_SECRET",
+    "DISCORD_REDIRECT_URI",
+  ];
+  const previousConfiguration = new Map(
+    configurationKeys.map((key) => [key, process.env[key]]),
+  );
+  for (const key of configurationKeys) delete process.env[key];
+
+  try {
+    const app = require("./api/auth/discord");
+    const authServer = app.listen(0);
+    await new Promise((resolve) => authServer.once("listening", resolve));
+    try {
+      const response = await fetch(`http://127.0.0.1:${authServer.address().port}/api/auth/discord`);
+      assert.equal(response.status, 503);
+      assert.match((await response.json()).error, /not configured/);
+    } finally {
+      await new Promise((resolve, reject) => {
+        authServer.close((error) => error ? reject(error) : resolve());
+      });
+    }
+  } finally {
+    for (const [key, value] of previousConfiguration) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("market endpoint can preview tomorrow's scheduled prices", async () => {
