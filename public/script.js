@@ -12,6 +12,7 @@ const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
 
 function renderInvestMenu() {
   const item = items[selectedIndex];
+  const unlimitedPurchases = account?.daily.unlimited;
   const remaining = account?.daily.remaining ?? 0;
   $("invest-selection").textContent = item
     ? `${item.symbol} · ${item.name} · ${formatPrice(item.price)} per share`
@@ -19,7 +20,9 @@ function renderInvestMenu() {
   $("daily-limit").textContent = accountLoading
     ? "Loading account…"
     : account
-      ? `${remaining} of 10 stocks available today`
+      ? unlimitedPurchases
+        ? "Unlimited purchases available today"
+        : `${remaining} of 10 stocks available today`
       : "Sign in with Discord to invest.";
   const selectedHolding = account?.holdings.find((holding) => holding.symbol === item?.symbol);
   $("daily-owned").textContent = item
@@ -27,8 +30,9 @@ function renderInvestMenu() {
     : "";
   document.querySelectorAll("[data-buy-quantity]").forEach((button) => {
     const quantity = button.dataset.buyQuantity;
-    button.disabled = !account || !item || remaining === 0 ||
-      (quantity !== "max" && Number(quantity) > remaining);
+    button.disabled = !account || !item || (!unlimitedPurchases && (
+      remaining === 0 || (quantity !== "max" && Number(quantity) > remaining)
+    ));
   });
 
   const holdings = $("account-holdings");

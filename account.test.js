@@ -130,6 +130,33 @@ test("max purchase uses the remaining daily quota and updates holdings atomicall
   assert.deepEqual(marketPipeline[1].$set.history.A.$slice[1], -120);
 });
 
+test("configured Discord account can buy max shares without a daily cap", async () => {
+  await startServer({
+    environment: { UNLIMITED_PURCHASE_DISCORD_ID: account.discordId },
+    updatedAccount: {
+      ...account,
+      holdings: { A: 13, B: 2 },
+      dailyPurchased: 14,
+    },
+  });
+  const response = await fetch(`${baseUrl}/api/account/purchases`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ symbol: "A", quantity: "max" }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.purchased, { symbol: "A", shares: 10 });
+  assert.equal(result.daily.unlimited, true);
+  assert.equal(result.daily.remaining, null);
+  assert.deepEqual(updatedFilter, { _id: account._id });
+  assert.equal(updatedPipeline[0].$set.dailyPurchased.$add[1], 10);
+});
+
 test("purchase endpoint rejects symbols that are not in the market", async () => {
   await startServer();
   const response = await fetch(`${baseUrl}/api/account/purchases`, {

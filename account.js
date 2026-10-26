@@ -96,7 +96,7 @@ async function runTransaction(callback) {
   }
 }
 
-function accountPayload(account, today) {
+function accountPayload(account, today, unlimitedPurchases = false) {
   const purchased = dailyPurchaseCount(account, today);
   const holdings = Object.entries(account.holdings || {})
     .filter(([, shares]) => Number.isInteger(shares) && shares > 0)
@@ -113,7 +113,8 @@ function accountPayload(account, today) {
     daily: {
       date: today,
       purchased,
-      remaining: DAILY_STOCK_LIMIT - purchased,
+      unlimited: unlimitedPurchases,
+      remaining: unlimitedPurchases ? null : DAILY_STOCK_LIMIT - purchased,
     },
     holdings,
   };
@@ -132,6 +133,14 @@ function createAccountRouter({
 } = {}) {
   const router = express.Router();
   const secureCookies = environment.NODE_ENV === "production";
+  const unlimitedPurchaseDiscordId = environment.UNLIMITED_PURCHASE_DISCORD_ID;
+
+  function hasUnlimitedPurchases(account) {
+    return Boolean(
+      unlimitedPurchaseDiscordId &&
+      account.discordId === unlimitedPurchaseDiscordId.trim()
+    );
+  }
 
   function discordConfig() {
     const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI } = environment;
@@ -259,7 +268,7 @@ function createAccountRouter({
       const account = await findAccount(req);
       if (!account) return res.status(401).json({ error: "Sign in to access your account" });
       res.set("Cache-Control", "no-store");
-      res.json(accountPayload(account, utcDateString(clock())));
+      res.json(accountPayload(account, utcDateString(clock()), hasUnlimitedPurchases(account)));
     } catch (error) {
       console.error("Unable to load account:", error);
       res.status(500).json({ error: "Unable to load account" });
@@ -281,8 +290,14 @@ function createAccountRouter({
       }
 
       const today = utcDateString(clock());
+      const unlimitedPurchases = hasUnlimitedPurchases(account);
       const previousCount = dailyPurchaseCount(account, today);
-      const sharesToBuy = quantity === "max" ? DAILY_STOCK_LIMIT - previousCount : quantity;
+      let sharesToBuy = quantity;
+      if (quantity === "max") {
+        sharesToBuy = unlimitedPurchases
+          ? DAILY_STOCK_LIMIT
+          : DAILY_STOCK_LIMIT - previousCount;
+      }
       if (sharesToBuy < 1) {
         return res.status(409).json({ error: "Daily limit reached" });
       }
@@ -298,12 +313,16 @@ function createAccountRouter({
         const updatedAccount = await AccountModel.findOneAndUpdate(
           {
             _id: account._id,
-            $expr: {
-              $lte: [
-                dailyCountExpression,
-                DAILY_STOCK_LIMIT - sharesToBuy,
-              ],
-            },
+            ...(!unlimitedPurchases
+              ? {
+                  $expr: {
+                    $lte: [
+                      dailyCountExpression,
+                      DAILY_STOCK_LIMIT - sharesToBuy,
+                    ],
+                  },
+                }
+              : {}),
           },
           [
             {
@@ -342,7 +361,7 @@ function createAccountRouter({
 
       res.set("Cache-Control", "no-store");
       res.json({
-        ...accountPayload(purchase.updatedAccount, today),
+        ...accountPayload(purchase.updatedAccount, today, unlimitedPurchases),
         purchased: { symbol, shares: sharesToBuy },
         marketUpdated: true,
       });
