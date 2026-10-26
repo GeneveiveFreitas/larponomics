@@ -171,7 +171,7 @@ h1 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
-  color: var(--muted);
+  color: white;
   font-size: 14px;
 }
 
@@ -179,8 +179,8 @@ h1 {
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
+  background: red;
+  color: white;
   font: inherit;
 }
 
@@ -194,7 +194,7 @@ h1 {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: inherit;
+  color: white;
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -202,8 +202,9 @@ h1 {
 }
 
 .row:hover {
-  border-color: var(--border);
-  background: var(--panel-muted);
+  border-color: none;
+  color: white;
+  background: red;
 }
 
 .row:focus-visible,
@@ -213,8 +214,9 @@ button:focus-visible {
 }
 
 .row.sel {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: none;
+  color: white;
+  background: red;
 }
 
 .sym {
