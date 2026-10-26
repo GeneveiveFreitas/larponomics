@@ -18,6 +18,7 @@ let server;
 let baseUrl;
 let updatedFilter;
 let updatedPipeline;
+let updatedOptions;
 
 async function startServer({ accountData = account, updatedAccount = account, environment = {} } = {}) {
   if (server) {
@@ -31,9 +32,10 @@ async function startServer({ accountData = account, updatedAccount = account, en
   app.use(createAccountRouter({
     AccountModel: {
       findById: () => ({ lean: async () => accountData }),
-      findOneAndUpdate: (filter, pipeline) => {
+      findOneAndUpdate: (filter, pipeline, options) => {
         updatedFilter = filter;
         updatedPipeline = pipeline;
+        updatedOptions = options;
         return { lean: async () => updatedAccount };
       },
     },
@@ -105,6 +107,7 @@ test("max purchase uses the remaining daily quota and updates holdings atomicall
   assert.equal(updatedFilter.$expr.$lte[1], 4);
   assert.equal(updatedPipeline[0].$set.dailyPurchased.$add[1], 6);
   assert.deepEqual(updatedPipeline[0].$set.holdings.$mergeObjects[1].A.$add[1], 6);
+  assert.equal(updatedOptions.updatePipeline, true);
 });
 
 test("purchase endpoint rejects symbols that are not in the market", async () => {

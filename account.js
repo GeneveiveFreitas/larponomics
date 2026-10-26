@@ -301,7 +301,7 @@ function createAccountRouter({
             },
           },
         ],
-        { new: true },
+        { new: true, updatePipeline: true },
       ).lean();
 
       if (!updatedAccount) {
