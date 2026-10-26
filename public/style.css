@@ -77,6 +77,27 @@ header {
   background: var(--panel-muted);
 }
 
+.site-nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.site-nav a {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-nav a.active,
+.site-nav a:hover {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
 h1 {
   margin: 0;
   font-size: clamp(36px, 3vw, 32px);
@@ -118,65 +139,6 @@ h1 {
   gap: 8px;
   max-height: min(720px, calc(100vh - 160px));
   overflow-y: auto;
-}
-
-.invest-panel {
-  margin: 0 0 20px;
-  padding: 18px;
-}
-
-.invest-panel h2 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.invest-panel p {
-  margin: 6px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.invest-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.invest-actions button {
-  padding: 8px 14px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: white;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-}
-
-.invest-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-#invest-message.error {
-  color: var(--red);
-}
-
-.account-holdings {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.account-holdings h3 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.account-holdings p {
-  margin: 6px 0 0;
-  font-variant-numeric: tabular-nums;
 }
 
 .list-controls {
@@ -313,6 +275,117 @@ button:focus-visible {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.voting-panel {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.voting-panel h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.vote-instructions {
+  color: var(--muted);
+}
+
+.vote-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 18px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-list {
+  display: grid;
+  gap: 8px;
+}
+
+.vote-stock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.vote-stock-info,
+.vote-stock-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.vote-stock-info {
+  min-width: 240px;
+  flex: 1;
+}
+
+.vote-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vote-control-label {
+  min-width: 42px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vote-control button,
+#submit-votes {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.vote-control.up button:last-child,
+#submit-votes {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.vote-control.down button:last-child {
+  border-color: var(--red);
+  background: var(--red);
+  color: white;
+}
+
+.vote-control button:disabled,
+#submit-votes:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.vote-submit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.vote-submit-row p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.vote-submit-row p.error {
+  color: var(--red);
 }
 
 canvas {

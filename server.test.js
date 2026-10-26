@@ -37,7 +37,7 @@ after(async () => {
   });
 });
 
-test("market endpoint returns saved prices and purchase-driven history", async () => {
+test("market endpoint returns saved prices and price history", async () => {
   const response = await fetch(`${baseUrl}/api/market`);
   const result = await response.json();
   const stockA = result.stocks.find((stock) => stock.symbol === "A");
@@ -53,13 +53,18 @@ test("market endpoint returns saved prices and purchase-driven history", async (
   assert.equal(stockB.dailyChange, 0);
 });
 
-test("app serves the market page and static assets", async () => {
+test("app serves the market and voting pages with their scripts", async () => {
   const page = await fetch(baseUrl);
   const script = await fetch(`${baseUrl}/script.js`);
+  const votingPage = await fetch(`${baseUrl}/votes.html`);
+  const votingScript = await fetch(`${baseUrl}/votes.js`);
 
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Kethercraft Stock Market/);
   assert.equal(script.status, 200);
+  assert.equal(votingPage.status, 200);
+  assert.match(await votingPage.text(), /Vote on stock prices/);
+  assert.equal(votingScript.status, 200);
 });
 
 test("Vercel market function exports a request handler", () => {
@@ -69,7 +74,7 @@ test("Vercel market function exports a request handler", () => {
 test("Vercel account endpoints export request handlers", () => {
   for (const endpoint of [
     "./api/account",
-    "./api/account/purchases",
+    "./api/account/votes",
     "./api/auth/discord",
     "./api/auth/discord/callback",
     "./api/auth/logout",
@@ -110,7 +115,7 @@ test("Vercel Discord sign-in endpoint routes to the account handler", async () =
   }
 });
 
-test("market endpoint returns initial prices when no purchase has updated them", async () => {
+test("market endpoint returns initial prices when no votes have updated them", async () => {
   const emptyMarket = { findOne: () => ({ lean: async () => null }) };
   const app = createApp({
     marketState: emptyMarket,

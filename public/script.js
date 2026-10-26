@@ -1,5 +1,4 @@
 const HISTORY_LIMIT = 120;
-const DAY_LENGTH = 24 * 60 * 60 * 1000;
 const MARKET_REQUEST_TIMEOUT = 15000;
 let items = [];
 let selectedIndex = 0;
@@ -9,49 +8,6 @@ let accountLoading = true;
 
 const $ = (id) => document.getElementById(id);
 const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
-
-function renderInvestMenu() {
-  const item = items[selectedIndex];
-  const unlimitedPurchases = account?.daily.unlimited;
-  const remaining = account?.daily.remaining ?? 0;
-  $("invest-selection").textContent = item
-    ? `${item.symbol} · ${item.name} · ${formatPrice(item.price)} per share`
-    : "Select a stock to get started.";
-  $("daily-limit").textContent = accountLoading
-    ? "Loading account…"
-    : account
-      ? unlimitedPurchases
-        ? "Unlimited purchases available today"
-        : `${remaining} of 10 stocks available today`
-      : "Sign in with Discord to invest.";
-  const selectedHolding = account?.holdings.find((holding) => holding.symbol === item?.symbol);
-  $("daily-owned").textContent = item
-    ? `Owned: ${selectedHolding?.shares || 0} ${item.symbol} shares`
-    : "";
-  document.querySelectorAll("[data-buy-quantity]").forEach((button) => {
-    const quantity = button.dataset.buyQuantity;
-    button.disabled = !account || !item || (!unlimitedPurchases && (
-      remaining === 0 || (quantity !== "max" && Number(quantity) > remaining)
-    ));
-  });
-
-  const holdings = $("account-holdings");
-  holdings.replaceChildren();
-  if (!account) return;
-  const owned = account.holdings.filter((holding) => holding.shares > 0);
-  if (!owned.length) {
-    holdings.textContent = "No stocks owned yet.";
-    return;
-  }
-
-  for (const holding of owned) {
-    const row = document.createElement("p");
-    const stock = items.find((candidate) => candidate.symbol === holding.symbol);
-    row.textContent = `${holding.symbol}: ${holding.shares} shares`;
-    if (stock) row.textContent += ` · ${formatPrice(stock.price * holding.shares)} current value`;
-    holdings.appendChild(row);
-  }
-}
 
 function renderAccount() {
   const login = $("discord-login");
@@ -64,7 +20,6 @@ function renderAccount() {
     avatar.hidden = !account.user.avatarUrl;
     if (account.user.avatarUrl) avatar.src = account.user.avatarUrl;
   }
-  renderInvestMenu();
 }
 
 async function loadAccount() {
@@ -79,13 +34,11 @@ async function loadAccount() {
       if (!response.ok) throw new Error(result.error || `Account request failed (${response.status})`);
       account = result;
     }
-    $("invest-message").classList.remove("error");
-    $("invest-message").textContent = "";
   } catch (error) {
     console.error("Unable to load account:", error);
     account = null;
-    $("invest-message").classList.add("error");
-    $("invest-message").textContent = "Unable to load your account. Please refresh and try again.";
+    $("status").classList.add("error");
+    $("status").textContent = "Unable to load your account. Please refresh and try again.";
   } finally {
     accountLoading = false;
     renderAccount();
@@ -205,46 +158,6 @@ function render() {
 
   updateList();
   drawChart();
-  renderInvestMenu();
-}
-
-async function purchaseStock(quantity) {
-  const item = items[selectedIndex];
-  if (!account || !item) return;
-
-  const buttons = [...document.querySelectorAll("[data-buy-quantity]")];
-  buttons.forEach((button) => {
-    button.disabled = true;
-  });
-  try {
-    const response = await fetch("/api/account/purchases", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: item.symbol, quantity }),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      if (response.status === 401) {
-        account = null;
-        renderAccount();
-      } else if (response.status === 409) {
-        await loadAccount();
-      }
-      throw new Error(result.error || `Purchase failed (${response.status})`);
-    }
-
-    account = result;
-    $("invest-message").classList.remove("error");
-    $("invest-message").textContent =
-      `Bought ${result.purchased.shares} ${item.symbol} share${result.purchased.shares === 1 ? "" : "s"}.`;
-    await loadMarket();
-  } catch (error) {
-    console.error("Unable to complete stock purchase:", error);
-    $("invest-message").classList.add("error");
-    $("invest-message").textContent = error.message;
-  } finally {
-    renderAccount();
-  }
 }
 
 async function loadMarket() {
@@ -294,11 +207,7 @@ async function loadMarket() {
 }
 
 function scheduleNextUpdate() {
-  const delay = DAY_LENGTH - (Date.now() % DAY_LENGTH);
-  setTimeout(async () => {
-    await Promise.all([loadMarket(), loadAccount()]);
-    scheduleNextUpdate();
-  }, delay);
+  setInterval(loadMarket, 60000);
 }
 
 window.addEventListener("resize", () => {
@@ -319,15 +228,6 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-document.querySelectorAll("[data-buy-quantity]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const requested = button.dataset.buyQuantity === "max"
-      ? "max"
-      : Number(button.dataset.buyQuantity);
-    purchaseStock(requested);
-  });
-});
-
 $("logout-button").addEventListener("click", async () => {
   try {
     const response = await fetch("/api/auth/logout", { method: "POST" });
@@ -336,13 +236,13 @@ $("logout-button").addEventListener("click", async () => {
       throw new Error(result.error || "Unable to sign out");
     }
     account = null;
-    $("invest-message").classList.remove("error");
-    $("invest-message").textContent = "Signed out.";
+    $("status").classList.remove("error");
+    $("status").textContent = "Signed out.";
     renderAccount();
   } catch (error) {
     console.error("Unable to sign out:", error);
-    $("invest-message").classList.add("error");
-    $("invest-message").textContent = error.message;
+    $("status").classList.add("error");
+    $("status").textContent = error.message;
   }
 });
 

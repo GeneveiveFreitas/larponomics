@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vote on prices · Kethercraft Stock Market</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Vote on stock prices</h1>
+      <p class="status" id="status" role="status" aria-live="polite">Loading voting market…</p>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/">Market</a>
+        <a class="active" href="/votes.html">Vote on prices</a>
+      </nav>
+      <div class="account-bar">
+        <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>
+        <div id="account-user" hidden>
+          <img id="account-avatar" alt="" hidden>
+          <span id="account-username"></span>
+          <button id="logout-button" type="button">Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main class="block voting-panel">
+      <h2>Your daily votes</h2>
+      <p class="vote-instructions">
+        Use all 3 up-votes and all 3 down-votes on any stocks. Each vote changes that
+        stock’s price by 1%. Submit once per day; votes reset at midnight UTC.
+      </p>
+      <div class="vote-totals" aria-live="polite">
+        <span>Up-votes remaining: <strong id="up-remaining">3</strong></span>
+        <span>Down-votes remaining: <strong id="down-remaining">3</strong></span>
+      </div>
+      <div id="vote-list" class="vote-list"></div>
+      <div class="vote-submit-row">
+        <button id="submit-votes" type="button" disabled>Submit votes</button>
+        <p id="vote-message" role="status" aria-live="polite"></p>
+      </div>
+    </main>
+  </div>
+<script src="votes.js" defer></script>
+</body>
+</html>

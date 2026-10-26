@@ -3,12 +3,13 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   connectDatabase,
+  getMarketData,
   MarketState,
   STOCKS,
   updateMarketPrices,
 } = require("./market");
 
-const DAILY_STOCK_LIMIT = 10;
+const VOTES_PER_DIRECTION = 3;
 const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "larponomics_session";
 const OAUTH_STATE_COOKIE = "larponomics_oauth_state";
@@ -19,9 +20,8 @@ const accountSchema = new mongoose.Schema(
     discordId: { type: String, required: true, unique: true },
     username: { type: String, required: true },
     avatar: { type: String, default: null },
-    holdings: { type: mongoose.Schema.Types.Mixed, default: {} },
-    dailyPurchaseDate: { type: String, default: "" },
-    dailyPurchased: { type: Number, default: 0 },
+    dailyVoteDate: { type: String, default: "" },
+    dailyVotes: { type: mongoose.Schema.Types.Mixed, default: { up: {}, down: {} } },
   },
   { collection: "accounts", timestamps: true },
 );
@@ -41,17 +41,6 @@ const AccountSession = mongoose.models.LarponomicsAccountSession ||
 
 function utcDateString(date) {
   return date.toISOString().slice(0, 10);
-}
-
-function dailyPurchaseCount(account, today) {
-  if (
-    account.dailyPurchaseDate !== today ||
-    !Number.isInteger(account.dailyPurchased) ||
-    account.dailyPurchased < 0
-  ) {
-    return 0;
-  }
-  return Math.min(account.dailyPurchased, DAILY_STOCK_LIMIT);
 }
 
 function cookieValue(req, name) {
@@ -96,12 +85,7 @@ async function runTransaction(callback) {
   }
 }
 
-function accountPayload(account, today, unlimitedPurchases = false) {
-  const purchased = dailyPurchaseCount(account, today);
-  const holdings = Object.entries(account.holdings || {})
-    .filter(([, shares]) => Number.isInteger(shares) && shares > 0)
-    .map(([symbol, shares]) => ({ symbol, shares }));
-
+function accountPayload(account, today) {
   return {
     user: {
       id: account.discordId,
@@ -112,12 +96,22 @@ function accountPayload(account, today, unlimitedPurchases = false) {
     },
     daily: {
       date: today,
-      purchased,
-      unlimited: unlimitedPurchases,
-      remaining: unlimitedPurchases ? null : DAILY_STOCK_LIMIT - purchased,
+      submitted: account.dailyVoteDate === today,
     },
-    holdings,
   };
+}
+
+function validVoteAllocation(allocation) {
+  if (!allocation || typeof allocation !== "object" || Array.isArray(allocation)) {
+    return false;
+  }
+  const entries = Object.entries(allocation);
+  return entries.every(([symbol, count]) =>
+    stockSymbols.has(symbol) &&
+    Number.isInteger(count) &&
+    count > 0 &&
+    count <= VOTES_PER_DIRECTION
+  ) && entries.reduce((total, [, count]) => total + count, 0) === VOTES_PER_DIRECTION;
 }
 
 function createAccountRouter({
@@ -129,19 +123,9 @@ function createAccountRouter({
   fetchImpl = globalThis.fetch,
   environment = process.env,
   transaction = runTransaction,
-  marketRandom = Math.random,
 } = {}) {
   const router = express.Router();
   const secureCookies = environment.NODE_ENV === "production";
-  const unlimitedPurchaseDiscordId = environment.UNLIMITED_PURCHASE_DISCORD_ID;
-
-  function hasUnlimitedPurchases(account) {
-    return Boolean(
-      unlimitedPurchaseDiscordId &&
-      account.discordId === unlimitedPurchaseDiscordId.trim()
-    );
-  }
-
   function discordConfig() {
     const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI } = environment;
     if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI) return null;
@@ -244,7 +228,7 @@ function createAccountRouter({
         { discordId: discordUser.id },
         {
           $set: { username: discordUser.username, avatar: discordUser.avatar || null },
-          $setOnInsert: { holdings: {}, dailyPurchaseDate: "", dailyPurchased: 0 },
+          $setOnInsert: { dailyVoteDate: "", dailyVotes: { up: {}, down: {} } },
         },
         { new: true, upsert: true, runValidators: true },
       );
@@ -268,106 +252,56 @@ function createAccountRouter({
       const account = await findAccount(req);
       if (!account) return res.status(401).json({ error: "Sign in to access your account" });
       res.set("Cache-Control", "no-store");
-      res.json(accountPayload(account, utcDateString(clock()), hasUnlimitedPurchases(account)));
+      res.json(accountPayload(account, utcDateString(clock())));
     } catch (error) {
       console.error("Unable to load account:", error);
       res.status(500).json({ error: "Unable to load account" });
     }
   });
 
-  router.post("/api/account/purchases", async (req, res) => {
+  router.post("/api/account/votes", async (req, res) => {
     try {
       const account = await findAccount(req);
-      if (!account) return res.status(401).json({ error: "Sign in to invest" });
+      if (!account) return res.status(401).json({ error: "Sign in to vote" });
 
-      const { symbol, quantity } = req.body || {};
-      if (
-        typeof symbol !== "string" ||
-        !stockSymbols.has(symbol) ||
-        ![1, 5, "max"].includes(quantity)
-      ) {
-        return res.status(400).json({ error: "Choose a valid stock and quantity" });
+      const { up, down } = req.body || {};
+      if (!validVoteAllocation(up) || !validVoteAllocation(down)) {
+        return res.status(400).json({
+          error: "Choose exactly 3 valid up-votes and 3 valid down-votes",
+        });
       }
 
       const today = utcDateString(clock());
-      const unlimitedPurchases = hasUnlimitedPurchases(account);
-      const previousCount = dailyPurchaseCount(account, today);
-      let sharesToBuy = quantity;
-      if (quantity === "max") {
-        sharesToBuy = unlimitedPurchases
-          ? DAILY_STOCK_LIMIT
-          : DAILY_STOCK_LIMIT - previousCount;
-      }
-      if (sharesToBuy < 1) {
-        return res.status(409).json({ error: "Daily limit reached" });
-      }
-
-      const dailyCountExpression = {
-        $cond: [
-          { $eq: ["$dailyPurchaseDate", today] },
-          { $ifNull: ["$dailyPurchased", 0] },
-          0,
-        ],
-      };
-      const purchase = await transaction(async (session) => {
+      const vote = await transaction(async (session) => {
         const updatedAccount = await AccountModel.findOneAndUpdate(
-          {
-            _id: account._id,
-            ...(!unlimitedPurchases
-              ? {
-                  $expr: {
-                    $lte: [
-                      dailyCountExpression,
-                      DAILY_STOCK_LIMIT - sharesToBuy,
-                    ],
-                  },
-                }
-              : {}),
-          },
-          [
-            {
-              $set: {
-                dailyPurchaseDate: today,
-                dailyPurchased: { $add: [dailyCountExpression, sharesToBuy] },
-                holdings: {
-                  $mergeObjects: [
-                    { $ifNull: ["$holdings", {}] },
-                    {
-                      [symbol]: {
-                        $add: [{ $ifNull: [`$holdings.${symbol}`, 0] }, sharesToBuy],
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          ],
-          { new: true, updatePipeline: true, session },
+          { _id: account._id, dailyVoteDate: { $ne: today } },
+          { $set: { dailyVoteDate: today, dailyVotes: { up, down } } },
+          { new: true, session },
         ).lean();
 
         if (!updatedAccount) return null;
-        const market = await updateMarketPrices(
+        await updateMarketPrices(
           MarketStateModel,
-          symbol,
-          sharesToBuy,
-          { random: marketRandom, session },
+          up,
+          down,
+          { session },
         );
-        return { updatedAccount, market };
+        return updatedAccount;
       });
 
-      if (!purchase) {
-        return res.status(409).json({ error: "Daily limit changed. Refresh and try again." });
+      if (!vote) {
+        return res.status(409).json({ error: "You have already voted today." });
       }
 
       res.set("Cache-Control", "no-store");
       res.json({
-        ...accountPayload(purchase.updatedAccount, today, unlimitedPurchases),
-        purchased: { symbol, shares: sharesToBuy },
+        ...accountPayload(vote, today),
+        market: await getMarketData(MarketStateModel, today),
         marketUpdated: true,
       });
     } catch (error) {
-      console.error("Unable to save stock purchase:", error);
-      res.status(500).json({ error: "Unable to save purchase" });
+      console.error("Unable to submit stock votes:", error);
+      res.status(500).json({ error: "Unable to submit votes" });
     }
   });
 
@@ -389,4 +323,4 @@ function createAccountRouter({
   return router;
 }
 
-module.exports = { accountPayload, createAccountRouter, dailyPurchaseCount, DAILY_STOCK_LIMIT };
+module.exports = { accountPayload, createAccountRouter, validVoteAllocation, VOTES_PER_DIRECTION };

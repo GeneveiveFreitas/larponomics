@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const express = require("express");
 const { after, test } = require("node:test");
-const { createAccountRouter, dailyPurchaseCount } = require("./account");
+const { createAccountRouter } = require("./account");
 
 const today = "2026-10-26";
 const now = new Date(`${today}T12:00:00.000Z`);
@@ -10,21 +10,19 @@ const account = {
   discordId: "12345678901234567",
   username: "MarketFan",
   avatar: "avatar-hash",
-  holdings: { A: 3, B: 2 },
-  dailyPurchaseDate: today,
-  dailyPurchased: 4,
+  dailyVoteDate: "",
+  dailyVotes: { up: {}, down: {} },
 };
 let server;
 let baseUrl;
 let updatedFilter;
-let updatedPipeline;
+let updatedDocument;
 let updatedOptions;
 let marketPipeline;
-let marketOptions;
 
 async function startServer({
   accountData = account,
-  updatedAccount = account,
+  updatedAccount = { ...account, dailyVoteDate: today },
   environment = {},
 } = {}) {
   if (server) {
@@ -38,17 +36,18 @@ async function startServer({
   app.use(createAccountRouter({
     AccountModel: {
       findById: () => ({ lean: async () => accountData }),
-      findOneAndUpdate: (filter, pipeline, options) => {
+      findOneAndUpdate: (filter, update, options) => {
         updatedFilter = filter;
-        updatedPipeline = pipeline;
+        updatedDocument = update;
         updatedOptions = options;
         return { lean: async () => updatedAccount };
       },
     },
     MarketStateModel: {
+      findOne: () => ({ lean: async () => null }),
       findOneAndUpdate: (filter, pipeline, options) => {
         marketPipeline = pipeline;
-        marketOptions = options;
+        assert.equal(options.session, undefined);
         return { lean: async () => ({}) };
       },
     },
@@ -60,7 +59,6 @@ async function startServer({
     clock: () => now,
     environment,
     transaction: async (callback) => callback(undefined),
-    marketRandom: () => 0.5,
   }));
   return new Promise((resolve) => {
     server = app.listen(0, () => {
@@ -77,13 +75,8 @@ after(async () => {
   });
 });
 
-test("daily purchase count resets according to the UTC date", () => {
-  assert.equal(dailyPurchaseCount(account, today), 4);
-  assert.equal(dailyPurchaseCount(account, "2026-10-27"), 0);
-});
-
-test("account endpoint returns profile, daily quota, and owned shares", async () => {
-  await startServer({ accountData: { ...account, dailyPurchaseDate: "2026-10-25" } });
+test("account endpoint reports whether today's votes were submitted", async () => {
+  await startServer({ accountData: { ...account, dailyVoteDate: today } });
   const response = await fetch(`${baseUrl}/api/account`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
@@ -91,85 +84,90 @@ test("account endpoint returns profile, daily quota, and owned shares", async ()
 
   assert.equal(response.status, 200);
   assert.equal(result.user.username, "MarketFan");
-  assert.equal(result.daily.purchased, 0);
-  assert.equal(result.daily.remaining, 10);
-  assert.deepEqual(result.holdings, [
-    { symbol: "A", shares: 3 },
-    { symbol: "B", shares: 2 },
-  ]);
+  assert.deepEqual(result.daily, { date: today, submitted: true });
 });
 
-test("max purchase uses the remaining daily quota and updates holdings atomically", async () => {
-  await startServer({
-    updatedAccount: {
-      ...account,
-      holdings: { A: 9, B: 2 },
-      dailyPurchased: 10,
-    },
-  });
-  const response = await fetch(`${baseUrl}/api/account/purchases`, {
-    method: "POST",
-    headers: {
-      Cookie: "larponomics_session=test-session",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ symbol: "A", quantity: "max" }),
-  });
-  const result = await response.json();
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(result.purchased, { symbol: "A", shares: 6 });
-  assert.equal(updatedFilter.$expr.$lte[1], 4);
-  assert.equal(updatedPipeline[0].$set.dailyPurchased.$add[1], 6);
-  assert.deepEqual(updatedPipeline[0].$set.holdings.$mergeObjects[1].A.$add[1], 6);
-  assert.equal(updatedOptions.updatePipeline, true);
-  assert.equal(updatedOptions.session, undefined);
-  assert.equal(marketOptions.updatePipeline, true);
-  assert.equal(marketPipeline[1].$set.prices.A.$max[1].$multiply[1], 1.006);
-  assert.equal(Object.keys(marketPipeline[1].$set.prices).length, 39);
-  assert.deepEqual(marketPipeline[1].$set.history.A.$slice[1], -120);
-});
-
-test("configured Discord account can buy max shares without a daily cap", async () => {
-  await startServer({
-    environment: { UNLIMITED_PURCHASE_DISCORD_ID: account.discordId },
-    updatedAccount: {
-      ...account,
-      holdings: { A: 13, B: 2 },
-      dailyPurchased: 14,
-    },
-  });
-  const response = await fetch(`${baseUrl}/api/account/purchases`, {
-    method: "POST",
-    headers: {
-      Cookie: "larponomics_session=test-session",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ symbol: "A", quantity: "max" }),
-  });
-  const result = await response.json();
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(result.purchased, { symbol: "A", shares: 10 });
-  assert.equal(result.daily.unlimited, true);
-  assert.equal(result.daily.remaining, null);
-  assert.deepEqual(updatedFilter, { _id: account._id });
-  assert.equal(updatedPipeline[0].$set.dailyPurchased.$add[1], 10);
-});
-
-test("purchase endpoint rejects symbols that are not in the market", async () => {
+test("vote submission persists a 3-up/3-down ballot and updates prices", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/account/purchases`, {
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
     method: "POST",
     headers: {
       Cookie: "larponomics_session=test-session",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ symbol: "NOT-A-STOCK", quantity: 1 }),
+    body: JSON.stringify({ up: { A: 2, B: 1 }, down: { A: 1, C: 2 } }),
+  });
+  const result = await response.json();
+  const priceA = marketPipeline[1].$set.prices.A.$max[1].$round[0].$multiply[1];
+  const priceB = marketPipeline[1].$set.prices.B.$max[1].$round[0].$multiply[1];
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.daily, { date: today, submitted: true });
+  assert.deepEqual(updatedFilter, { _id: account._id, dailyVoteDate: { $ne: today } });
+  assert.deepEqual(updatedDocument.$set.dailyVotes, {
+    up: { A: 2, B: 1 },
+    down: { A: 1, C: 2 },
+  });
+  assert.equal(updatedOptions.session, undefined);
+  assert.ok(Math.abs(priceA - Math.pow(1.01, 2) * 0.99) < 1e-12);
+  assert.equal(priceB, 1.01);
+  assert.equal(marketPipeline[1].$set.history.A.$slice[1], -120);
+  assert.equal(result.market.stocks.length, 39);
+});
+
+test("vote submission rejects allocations other than three votes per direction", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { A: 2 }, down: { B: 3 } }),
   });
 
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /valid stock/);
+  assert.match((await response.json()).error, /exactly 3/);
+});
+
+test("vote submission rejects unknown symbols", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { INVALID: 3 }, down: { A: 3 } }),
+  });
+
+  assert.equal(response.status, 400);
+});
+
+test("an account can only submit one ballot per UTC day", async () => {
+  await startServer({ updatedAccount: null });
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { A: 3 }, down: { B: 3 } }),
+  });
+
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /already voted today/);
+});
+
+test("vote endpoint rejects unauthenticated submissions", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ up: { A: 3 }, down: { B: 3 } }),
+  });
+
+  assert.equal(response.status, 401);
 });
 
 test("Discord sign-in reports missing OAuth configuration", async () => {

@@ -114,25 +114,28 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
 
 async function updateMarketPrices(
   marketState,
-  selectedSymbol,
-  sharesPurchased,
-  { random = Math.random, session } = {},
+  upVotes,
+  downVotes,
+  { session } = {},
 ) {
   const initial = initialMarketValues();
   const priceUpdates = {};
   const historyUpdates = {};
 
   for (const stock of STOCKS) {
-    const marketDrift = 0.99 + random() * 0.02;
-    const purchaseBoost = stock.symbol === selectedSymbol ? 1 + sharesPurchased * 0.001 : 1;
+    const multiplier =
+      Math.pow(1.01, upVotes[stock.symbol] || 0) *
+      Math.pow(0.99, downVotes[stock.symbol] || 0);
     const nextPrice = {
       $max: [
         1,
         {
-          $multiply: [
-            { $ifNull: [`$prices.${stock.symbol}`, stock.initial] },
-            marketDrift * purchaseBoost,
-          ],
+          $round: [{
+            $multiply: [
+              { $ifNull: [`$prices.${stock.symbol}`, stock.initial] },
+              multiplier,
+            ],
+          }, 2],
         },
       ],
     };
