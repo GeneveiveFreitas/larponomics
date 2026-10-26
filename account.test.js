@@ -19,8 +19,14 @@ let baseUrl;
 let updatedFilter;
 let updatedPipeline;
 let updatedOptions;
+let marketPipeline;
+let marketOptions;
 
-async function startServer({ accountData = account, updatedAccount = account, environment = {} } = {}) {
+async function startServer({
+  accountData = account,
+  updatedAccount = account,
+  environment = {},
+} = {}) {
   if (server) {
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
@@ -39,6 +45,13 @@ async function startServer({ accountData = account, updatedAccount = account, en
         return { lean: async () => updatedAccount };
       },
     },
+    MarketStateModel: {
+      findOneAndUpdate: (filter, pipeline, options) => {
+        marketPipeline = pipeline;
+        marketOptions = options;
+        return { lean: async () => ({}) };
+      },
+    },
     SessionModel: {
       findOne: () => ({ lean: async () => ({ accountId: account._id }) }),
       deleteOne: async () => {},
@@ -46,6 +59,8 @@ async function startServer({ accountData = account, updatedAccount = account, en
     connect: async () => {},
     clock: () => now,
     environment,
+    transaction: async (callback) => callback(undefined),
+    marketRandom: () => 0.5,
   }));
   return new Promise((resolve) => {
     server = app.listen(0, () => {
@@ -108,6 +123,11 @@ test("max purchase uses the remaining daily quota and updates holdings atomicall
   assert.equal(updatedPipeline[0].$set.dailyPurchased.$add[1], 6);
   assert.deepEqual(updatedPipeline[0].$set.holdings.$mergeObjects[1].A.$add[1], 6);
   assert.equal(updatedOptions.updatePipeline, true);
+  assert.equal(updatedOptions.session, undefined);
+  assert.equal(marketOptions.updatePipeline, true);
+  assert.equal(marketPipeline[1].$set.prices.A.$max[1].$multiply[1], 1.006);
+  assert.equal(Object.keys(marketPipeline[1].$set.prices).length, 39);
+  assert.deepEqual(marketPipeline[1].$set.history.A.$slice[1], -120);
 });
 
 test("purchase endpoint rejects symbols that are not in the market", async () => {

@@ -2,13 +2,16 @@ const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
 const { createApp } = require("./server");
 
-const storedSchedules = [
-  { date: "2026-10-20", moves: { A: 2 } },
-  { date: "2026-10-21", moves: { A: 1 } },
-];
-const dailyMoves = {
-  find() {
-    return { lean: async () => storedSchedules };
+const storedMarketState = {
+  prices: { A: 1854.36, B: 1200 },
+  history: {
+    A: [1800, 1836, 1854.36],
+    B: [1200, 1200, 1200],
+  },
+};
+const marketState = {
+  findOne() {
+    return { lean: async () => storedMarketState };
   },
 };
 let server;
@@ -16,7 +19,7 @@ let baseUrl;
 
 before(async () => {
   const app = createApp({
-    dailyMoves,
+    marketState,
     clock: () => new Date("2026-10-21T00:00:00.000Z"),
     connect: async () => {},
   });
@@ -34,7 +37,7 @@ after(async () => {
   });
 });
 
-test("market endpoint returns scheduled prices and history", async () => {
+test("market endpoint returns saved prices and purchase-driven history", async () => {
   const response = await fetch(`${baseUrl}/api/market`);
   const result = await response.json();
   const stockA = result.stocks.find((stock) => stock.symbol === "A");
@@ -42,10 +45,9 @@ test("market endpoint returns scheduled prices and history", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(result.date, "2026-10-21");
-  assert.equal(result.scheduleAvailable, true);
   assert.ok(Math.abs(stockA.price - 1854.36) < 1e-9);
   assert.equal(stockB.price, 1200);
-  assert.equal(stockA.history.length, 120);
+  assert.equal(stockA.history.length, 3);
   assert.equal(stockA.history.at(-2), 1836);
   assert.ok(Math.abs(stockA.dailyChange - 1) < 1e-9);
   assert.equal(stockB.dailyChange, 0);
@@ -108,20 +110,25 @@ test("Vercel Discord sign-in endpoint routes to the account handler", async () =
   }
 });
 
-test("market endpoint can preview tomorrow's scheduled prices", async () => {
-  const response = await fetch(`${baseUrl}/api/market?date=2026-10-22`);
-  const result = await response.json();
+test("market endpoint returns initial prices when no purchase has updated them", async () => {
+  const emptyMarket = { findOne: () => ({ lean: async () => null }) };
+  const app = createApp({
+    marketState: emptyMarket,
+    clock: () => new Date("2026-10-21T00:00:00.000Z"),
+    connect: async () => {},
+  });
+  const emptyServer = app.listen(0);
+  await new Promise((resolve) => emptyServer.once("listening", resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${emptyServer.address().port}/api/market`);
+    const result = await response.json();
 
-  assert.equal(response.status, 200);
-  assert.equal(result.date, "2026-10-22");
-  assert.equal(result.scheduleAvailable, false);
-  assert.equal(result.stocks.find((stock) => stock.symbol === "A").dailyChange, 0);
-});
-
-test("market endpoint rejects previews beyond tomorrow", async () => {
-  const response = await fetch(`${baseUrl}/api/market?date=2026-10-23`);
-  const result = await response.json();
-
-  assert.equal(response.status, 400);
-  assert.match(result.error, /no later than tomorrow/);
+    assert.equal(response.status, 200);
+    assert.equal(result.stocks.find((stock) => stock.symbol === "A").price, 1800);
+    assert.equal(result.stocks.find((stock) => stock.symbol === "A").dailyChange, 0);
+  } finally {
+    await new Promise((resolve, reject) => {
+      emptyServer.close((error) => error ? reject(error) : resolve());
+    });
+  }
 });

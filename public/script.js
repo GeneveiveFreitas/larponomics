@@ -233,6 +233,7 @@ async function purchaseStock(quantity) {
     $("invest-message").classList.remove("error");
     $("invest-message").textContent =
       `Bought ${result.purchased.shares} ${item.symbol} share${result.purchased.shares === 1 ? "" : "s"}.`;
+    await loadMarket();
   } catch (error) {
     console.error("Unable to complete stock purchase:", error);
     $("invest-message").classList.add("error");
@@ -250,11 +251,7 @@ async function loadMarket() {
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const previewDate = new URLSearchParams(window.location.search).get("date");
-    const endpoint = previewDate
-      ? `/api/market?date=${encodeURIComponent(previewDate)}`
-      : "/api/market";
-    const response = await fetch(endpoint, {
+    const response = await fetch("/api/market", {
       cache: "no-store",
       signal: controller.signal,
     });
@@ -280,12 +277,7 @@ async function loadMarket() {
     sortItems();
     buildList();
     render();
-    if (result.scheduleAvailable) {
-      status.textContent = `Market prices for ${result.date}`;
-    } else {
-      status.className = "status error";
-      status.textContent = `No price schedule found for ${result.date}; prices are unchanged. Add a daily_moves record for this date in MongoDB.`;
-    }
+    status.textContent = `Market prices for ${result.date}`;
   } catch (error) {
     console.error("Unable to load market prices:", error);
     status.className = "status error";

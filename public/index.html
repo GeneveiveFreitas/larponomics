@@ -20,6 +20,22 @@
         </div>
       </div>
     </header>
+    <section class="block invest-panel" aria-labelledby="invest-title">
+      <h2 id="invest-title">Invest in selected stock</h2>
+      <p id="invest-selection">Select a stock to get started.</p>
+      <p id="daily-limit" aria-live="polite">Sign in to view your daily limit.</p>
+      <p id="daily-owned"></p>
+      <div class="invest-actions">
+        <button type="button" data-buy-quantity="1" disabled>Buy 1</button>
+        <button type="button" data-buy-quantity="5" disabled>Buy 5</button>
+        <button type="button" data-buy-quantity="max" disabled>Buy max</button>
+      </div>
+      <p id="invest-message" role="status" aria-live="polite"></p>
+      <div class="account-holdings">
+        <h3>Your stocks</h3>
+        <div id="account-holdings"></div>
+      </div>
+    </section>
     <div class="layout">
       <div class="block">
         <div class="list-controls">
@@ -30,22 +46,6 @@
           </select>
         </div>
         <div class="list" id="list"></div>
-        <section class="block invest-panel" aria-labelledby="invest-title">
-          <h2 id="invest-title">Invest in selected stock</h2>
-          <p id="invest-selection">Select a stock to get started.</p>
-          <p id="daily-limit" aria-live="polite">Sign in to view your daily limit.</p>
-          <p id="daily-owned"></p>
-          <div class="invest-actions">
-            <button type="button" data-buy-quantity="1" disabled>Buy 1</button>
-            <button type="button" data-buy-quantity="5" disabled>Buy 5</button>
-            <button type="button" data-buy-quantity="max" disabled>Buy max</button>
-          </div>
-          <p id="invest-message" role="status" aria-live="polite"></p>
-          <div class="account-holdings">
-            <h3>Your stocks</h3>
-            <div id="account-holdings"></div>
-          </div>
-        </section>
       </div>
       <div>
         <div class="block">

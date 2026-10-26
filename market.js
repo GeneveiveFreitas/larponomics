@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const mongoose = require("mongoose");
 
-const MARKET_START_DATE = "2026-01-01";
 const HISTORY_LIMIT = 120;
 const STOCKS = [
   { symbol: "A", name: "A Corp", initial: 1800 },
@@ -46,30 +45,23 @@ const STOCKS = [
   { symbol: "LATERANO", name: "Laterano", initial: 200 },
 ];
 
-const dailyMoveSchema = new mongoose.Schema(
+const marketStateSchema = new mongoose.Schema(
   {
-    date: { type: String, required: true, unique: true },
-    moves: { type: mongoose.Schema.Types.Mixed, required: true },
+    key: { type: String, required: true, unique: true },
+    prices: { type: mongoose.Schema.Types.Mixed, required: true },
+    history: { type: mongoose.Schema.Types.Mixed, required: true },
+    updatedAt: { type: Date, default: Date.now },
   },
-  { collection: "daily_moves", versionKey: false },
+  { collection: "market_state", versionKey: false },
 );
-const DailyMove = mongoose.model("DailyMove", dailyMoveSchema);
+const MarketState = mongoose.models.MarketState ||
+  mongoose.model("MarketState", marketStateSchema);
+const MARKET_STATE_KEY = "global";
 
 let connectionPromise;
 
 function utcDateString(date) {
   return date.toISOString().slice(0, 10);
-}
-
-function isValidMarketDate(value, today) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime()) || utcDateString(date) !== value) return false;
-  if (value < MARKET_START_DATE) return false;
-
-  const tomorrow = new Date(`${today}T00:00:00.000Z`);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  return value <= utcDateString(tomorrow);
 }
 
 async function connectDatabase() {
@@ -89,56 +81,98 @@ async function connectDatabase() {
   await connectionPromise;
 }
 
-async function getMarketData(dailyMoves, today) {
-  const schedules = await dailyMoves.find({
-    date: { $gt: MARKET_START_DATE, $lte: today },
-  }).lean();
-  const movesByDate = new Map(schedules.map((schedule) => [schedule.date, schedule.moves]));
-  const historyBySymbol = new Map(STOCKS.map((stock) => [stock.symbol, [stock.initial]]));
-  const prices = new Map(STOCKS.map((stock) => [stock.symbol, stock.initial]));
-  const date = new Date(`${MARKET_START_DATE}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + 1);
+function initialMarketValues() {
+  return {
+    prices: Object.fromEntries(STOCKS.map((stock) => [stock.symbol, stock.initial])),
+    history: Object.fromEntries(STOCKS.map((stock) => [stock.symbol, [stock.initial]])),
+  };
+}
 
-  while (utcDateString(date) <= today) {
-    const moves = movesByDate.get(utcDateString(date)) || {};
-
-    for (const stock of STOCKS) {
-      const percent = moves[stock.symbol] || 0;
-      const price = Math.max(1, prices.get(stock.symbol) * (1 + percent / 100));
-      if (!Number.isFinite(price)) {
-        throw new Error(`Invalid calculated price for stock ${stock.symbol}`);
-      }
-
-      prices.set(stock.symbol, price);
-      historyBySymbol.get(stock.symbol).push(price);
-    }
-
-    date.setUTCDate(date.getUTCDate() + 1);
-  }
-
+async function getMarketData(marketState = MarketState, today = utcDateString(new Date())) {
+  const state = await marketState.findOne({ key: MARKET_STATE_KEY }).lean();
+  const initial = initialMarketValues();
   return {
     date: today,
-    scheduleAvailable: movesByDate.has(today),
     stocks: STOCKS.map((stock) => {
-      const history = historyBySymbol.get(stock.symbol);
+      const history = state?.history?.[stock.symbol] || initial.history[stock.symbol];
+      const price = state?.prices?.[stock.symbol] || initial.prices[stock.symbol];
       const previousPrice = history.length > 1
         ? history[history.length - 2]
-        : prices.get(stock.symbol);
+        : price;
 
       return {
         symbol: stock.symbol,
         name: stock.name,
         initial: stock.initial,
-        price: prices.get(stock.symbol),
-        dailyChange: (prices.get(stock.symbol) / previousPrice - 1) * 100,
+        price,
+        dailyChange: (price / previousPrice - 1) * 100,
         history: history.slice(-HISTORY_LIMIT),
       };
     }),
   };
 }
 
+async function updateMarketPrices(
+  marketState,
+  selectedSymbol,
+  sharesPurchased,
+  { random = Math.random, session } = {},
+) {
+  const initial = initialMarketValues();
+  const priceUpdates = {};
+  const historyUpdates = {};
+
+  for (const stock of STOCKS) {
+    const marketDrift = 0.99 + random() * 0.02;
+    const purchaseBoost = stock.symbol === selectedSymbol ? 1 + sharesPurchased * 0.001 : 1;
+    const nextPrice = {
+      $max: [
+        1,
+        {
+          $multiply: [
+            { $ifNull: [`$prices.${stock.symbol}`, stock.initial] },
+            marketDrift * purchaseBoost,
+          ],
+        },
+      ],
+    };
+    priceUpdates[stock.symbol] = nextPrice;
+    historyUpdates[stock.symbol] = {
+      $slice: [
+        {
+          $concatArrays: [
+            { $ifNull: [`$history.${stock.symbol}`, [stock.initial]] },
+            [nextPrice],
+          ],
+        },
+        -HISTORY_LIMIT,
+      ],
+    };
+  }
+
+  const initializedValues = initialMarketValues();
+  return marketState.findOneAndUpdate(
+    { key: MARKET_STATE_KEY },
+    [
+      {
+        $set: {
+          key: { $ifNull: ["$key", MARKET_STATE_KEY] },
+          prices: {
+            $mergeObjects: [initializedValues.prices, { $ifNull: ["$prices", {}] }],
+          },
+          history: {
+            $mergeObjects: [initializedValues.history, { $ifNull: ["$history", {}] }],
+          },
+        },
+      },
+      { $set: { prices: priceUpdates, history: historyUpdates, updatedAt: new Date() } },
+    ],
+    { new: true, upsert: true, updatePipeline: true, ...(session ? { session } : {}) },
+  ).lean();
+}
+
 function createMarketHandler({
-  dailyMoves = DailyMove,
+  marketState = MarketState,
   clock = () => new Date(),
   connect = connectDatabase,
 } = {}) {
@@ -152,16 +186,8 @@ function createMarketHandler({
 
     try {
       const today = utcDateString(clock());
-      const requestedDate = new URL(req.url, "http://localhost").searchParams.get("date");
-      if (requestedDate && !isValidMarketDate(requestedDate, today)) {
-        res.setHeader("Content-Type", "application/json; charset=utf-8");
-        res.statusCode = 400;
-        res.end(JSON.stringify({ error: "Date must be valid and no later than tomorrow (UTC)" }));
-        return;
-      }
-
       await connect();
-      const data = await getMarketData(dailyMoves, requestedDate || today);
+      const data = await getMarketData(marketState, today);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.statusCode = 200;
@@ -179,7 +205,8 @@ module.exports = {
   createMarketHandler,
   connectDatabase,
   getMarketData,
-  isValidMarketDate,
+  updateMarketPrices,
+  MarketState,
   STOCKS,
   utcDateString,
 };

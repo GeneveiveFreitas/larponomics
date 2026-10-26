@@ -1,7 +1,12 @@
 const crypto = require("node:crypto");
 const express = require("express");
 const mongoose = require("mongoose");
-const { connectDatabase, STOCKS } = require("./market");
+const {
+  connectDatabase,
+  MarketState,
+  STOCKS,
+  updateMarketPrices,
+} = require("./market");
 
 const DAILY_STOCK_LIMIT = 10;
 const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -78,6 +83,19 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+async function runTransaction(callback) {
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await callback(session);
+    });
+    return result;
+  } finally {
+    await session.endSession();
+  }
+}
+
 function accountPayload(account, today) {
   const purchased = dailyPurchaseCount(account, today);
   const holdings = Object.entries(account.holdings || {})
@@ -104,10 +122,13 @@ function accountPayload(account, today) {
 function createAccountRouter({
   AccountModel = Account,
   SessionModel = AccountSession,
+  MarketStateModel = MarketState,
   connect = connectDatabase,
   clock = () => new Date(),
   fetchImpl = globalThis.fetch,
   environment = process.env,
+  transaction = runTransaction,
+  marketRandom = Math.random,
 } = {}) {
   const router = express.Router();
   const secureCookies = environment.NODE_ENV === "production";
@@ -273,45 +294,57 @@ function createAccountRouter({
           0,
         ],
       };
-      const updatedAccount = await AccountModel.findOneAndUpdate(
-        {
-          _id: account._id,
-          $expr: {
-            $lte: [
-              dailyCountExpression,
-              DAILY_STOCK_LIMIT - sharesToBuy,
-            ],
-          },
-        },
-        [
+      const purchase = await transaction(async (session) => {
+        const updatedAccount = await AccountModel.findOneAndUpdate(
           {
-            $set: {
-              dailyPurchaseDate: today,
-              dailyPurchased: { $add: [dailyCountExpression, sharesToBuy] },
-              holdings: {
-                $mergeObjects: [
-                  { $ifNull: ["$holdings", {}] },
-                  {
-                    [symbol]: {
-                      $add: [{ $ifNull: [`$holdings.${symbol}`, 0] }, sharesToBuy],
-                    },
-                  },
-                ],
-              },
+            _id: account._id,
+            $expr: {
+              $lte: [
+                dailyCountExpression,
+                DAILY_STOCK_LIMIT - sharesToBuy,
+              ],
             },
           },
-        ],
-        { new: true, updatePipeline: true },
-      ).lean();
+          [
+            {
+              $set: {
+                dailyPurchaseDate: today,
+                dailyPurchased: { $add: [dailyCountExpression, sharesToBuy] },
+                holdings: {
+                  $mergeObjects: [
+                    { $ifNull: ["$holdings", {}] },
+                    {
+                      [symbol]: {
+                        $add: [{ $ifNull: [`$holdings.${symbol}`, 0] }, sharesToBuy],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+          { new: true, updatePipeline: true, session },
+        ).lean();
 
-      if (!updatedAccount) {
+        if (!updatedAccount) return null;
+        const market = await updateMarketPrices(
+          MarketStateModel,
+          symbol,
+          sharesToBuy,
+          { random: marketRandom, session },
+        );
+        return { updatedAccount, market };
+      });
+
+      if (!purchase) {
         return res.status(409).json({ error: "Daily limit changed. Refresh and try again." });
       }
 
       res.set("Cache-Control", "no-store");
       res.json({
-        ...accountPayload(updatedAccount, today),
+        ...accountPayload(purchase.updatedAccount, today),
         purchased: { symbol, shares: sharesToBuy },
+        marketUpdated: true,
       });
     } catch (error) {
       console.error("Unable to save stock purchase:", error);
