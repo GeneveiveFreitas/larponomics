@@ -31,7 +31,11 @@ function renderAccount() {
 function changeVote(direction, symbol, amount) {
   const current = allocations[direction][symbol] || 0;
   const next = current + amount;
-  if (next < 0 || (amount > 0 && voteTotal(direction) >= VOTES_PER_DIRECTION)) return;
+  const alreadyUsed = allocations.up[symbol] || allocations.down[symbol];
+  if (
+    next < 0 ||
+    (amount > 0 && (voteTotal(direction) >= VOTES_PER_DIRECTION || alreadyUsed))
+  ) return;
   if (next === 0) delete allocations[direction][symbol];
   else allocations[direction][symbol] = next;
   renderList();
@@ -97,7 +101,10 @@ function renderList() {
     const { direction, symbol } = button.dataset;
     const count = allocations[direction][symbol] || 0;
     const isDecrease = button.textContent === "−";
-    button.disabled = locked || (isDecrease ? count === 0 : voteTotal(direction) >= VOTES_PER_DIRECTION);
+    const alreadyUsed = allocations.up[symbol] || allocations.down[symbol];
+    button.disabled = locked || (isDecrease
+      ? count === 0
+      : alreadyUsed || voteTotal(direction) >= VOTES_PER_DIRECTION);
   });
   renderAccount();
 }

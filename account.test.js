@@ -95,7 +95,10 @@ test("vote submission persists a 3-up/3-down ballot and updates prices", async (
       Cookie: "larponomics_session=test-session",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ up: { A: 2, B: 1 }, down: { A: 1, C: 2 } }),
+    body: JSON.stringify({
+      up: { A: 1, B: 1, D: 1 },
+      down: { C: 1, E: 1, F: 1 },
+    }),
   });
   const result = await response.json();
   const priceA = marketPipeline[1].$set.prices.A.$max[1].$round[0].$multiply[1];
@@ -105,12 +108,13 @@ test("vote submission persists a 3-up/3-down ballot and updates prices", async (
   assert.deepEqual(result.daily, { date: today, submitted: true });
   assert.deepEqual(updatedFilter, { _id: account._id, dailyVoteDate: { $ne: today } });
   assert.deepEqual(updatedDocument.$set.dailyVotes, {
-    up: { A: 2, B: 1 },
-    down: { A: 1, C: 2 },
+    up: { A: 1, B: 1, D: 1 },
+    down: { C: 1, E: 1, F: 1 },
   });
   assert.equal(updatedOptions.session, undefined);
-  assert.ok(Math.abs(priceA - Math.pow(1.01, 2) * 0.99) < 1e-12);
+  assert.equal(priceA, 1.01);
   assert.equal(priceB, 1.01);
+  assert.equal(marketPipeline[1].$set.prices.C.$max[1].$round[0].$multiply[1], 0.99);
   assert.equal(marketPipeline[1].$set.history.A.$slice[1], -120);
   assert.equal(result.market.stocks.length, 39);
 });
@@ -127,7 +131,38 @@ test("vote submission rejects allocations other than three votes per direction",
   });
 
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /exactly 3/);
+  assert.match((await response.json()).error, /3 unique stocks/);
+});
+
+test("vote submission rejects multiple votes for the same stock", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { A: 2, B: 1 }, down: { C: 1, D: 1, E: 1 } }),
+  });
+
+  assert.equal(response.status, 400);
+});
+
+test("vote submission rejects using the same stock for both directions", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { C: 1, D: 1, E: 1 },
+    }),
+  });
+
+  assert.equal(response.status, 400);
 });
 
 test("vote submission rejects unknown symbols", async () => {
@@ -152,7 +187,10 @@ test("an account can only submit one ballot per UTC day", async () => {
       Cookie: "larponomics_session=test-session",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ up: { A: 3 }, down: { B: 3 } }),
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { D: 1, E: 1, F: 1 },
+    }),
   });
 
   assert.equal(response.status, 409);
@@ -164,7 +202,10 @@ test("vote endpoint rejects unauthenticated submissions", async () => {
   const response = await fetch(`${baseUrl}/api/account/votes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ up: { A: 3 }, down: { B: 3 } }),
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { D: 1, E: 1, F: 1 },
+    }),
   });
 
   assert.equal(response.status, 401);

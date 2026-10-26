@@ -1,13 +1,13 @@
 :root {
-  --bg: #f3f6fa;
-  --panel: #ffffff;
-  --panel-muted: #f8fafc;
+  --bg: #681b16;
+  --panel: #070606;
+  --panel-muted: #020202;
   --border: #e2e8f0;
-  --text: #172033;
-  --muted: #64748b;
+  --text: #ffffff;
+  --muted: #ffffff;
   --green: #15803d;
   --red: #dc2626;
-  --accent: #2563eb;
+  --accent: #ff0000;
 
   color-scheme: light;
   box-sizing: border-box;
@@ -100,16 +100,16 @@ header {
 
 .site-nav a {
   padding: 7px 12px;
-  border: 1px solid #444;
   border-radius: 8px;
   color: #fff;
   text-decoration: none;
+  background: rgb(65, 2, 2);
 }
 
 .site-nav a.active,
 .site-nav a:hover {
   border-color: #888;
-  background: #292929;
+  background: #f70000;
 }
 
 h1 {

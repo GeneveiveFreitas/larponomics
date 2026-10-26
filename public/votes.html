@@ -11,8 +11,8 @@
     <header>
       <div class="header-top">
         <nav class="site-nav" aria-label="Main navigation">
-          <a href="/">Market</a>
-          <a class="active" href="/votes.html">Vote on prices</a>
+          <a href="/index.html">Market</a>
+          <a class="active" href="/votes.html">Voting</a>
         </nav>
         <div class="account-bar">
           <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>
@@ -23,14 +23,11 @@
           </div>
         </div>
       </div>
-      <h1>Vote on stock prices</h1>
+      <h1>Voting</h1>
     </header>
     <main class="block voting-panel">
       <h2>Your daily votes</h2>
-      <p class="vote-instructions">
-        Use all 3 up-votes and all 3 down-votes on any stocks. Each vote changes that
-        stock’s price by 1%. Submit once per day; votes reset at midnight UTC.
-      </p>
+      <p class="vote-instructions">Each stock can only be selected once across all six votes.</p>
       <div class="vote-totals" aria-live="polite">
         <span>Up-votes remaining: <strong id="up-remaining">3</strong></span>
         <span>Down-votes remaining: <strong id="down-remaining">3</strong></span>

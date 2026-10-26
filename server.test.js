@@ -63,7 +63,7 @@ test("app serves the market and voting pages with their scripts", async () => {
   assert.match(await page.text(), /Kethercraft Stock Market/);
   assert.equal(script.status, 200);
   assert.equal(votingPage.status, 200);
-  assert.match(await votingPage.text(), /Vote on stock prices/);
+  assert.match(await votingPage.text(), /Voting/);
   assert.equal(votingScript.status, 200);
 });
 

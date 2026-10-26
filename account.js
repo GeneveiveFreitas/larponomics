@@ -108,10 +108,8 @@ function validVoteAllocation(allocation) {
   const entries = Object.entries(allocation);
   return entries.every(([symbol, count]) =>
     stockSymbols.has(symbol) &&
-    Number.isInteger(count) &&
-    count > 0 &&
-    count <= VOTES_PER_DIRECTION
-  ) && entries.reduce((total, [, count]) => total + count, 0) === VOTES_PER_DIRECTION;
+    count === 1
+  ) && entries.length === VOTES_PER_DIRECTION;
 }
 
 function createAccountRouter({
@@ -265,9 +263,13 @@ function createAccountRouter({
       if (!account) return res.status(401).json({ error: "Sign in to vote" });
 
       const { up, down } = req.body || {};
-      if (!validVoteAllocation(up) || !validVoteAllocation(down)) {
+      if (
+        !validVoteAllocation(up) ||
+        !validVoteAllocation(down) ||
+        Object.keys(up).some((symbol) => Object.hasOwn(down, symbol))
+      ) {
         return res.status(400).json({
-          error: "Choose exactly 3 valid up-votes and 3 valid down-votes",
+          error: "Choose 3 unique stocks for each direction without reusing stocks",
         });
       }
 
