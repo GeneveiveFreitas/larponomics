@@ -137,3 +137,35 @@ test("market endpoint returns initial prices when no votes have updated them", a
     });
   }
 });
+
+test("market endpoint retains cumulative vote percentages across days", async () => {
+  const state = {
+    cumulativeChanges: { A: 2, B: -2 },
+  };
+  const app = createApp({
+    marketState: { findOne: () => ({ lean: async () => state }) },
+    clock: () => new Date(currentDate),
+    connect: async () => {},
+  });
+  let currentDate = "2026-10-21T12:00:00.000Z";
+  const dailyServer = app.listen(0);
+  await new Promise((resolve) => dailyServer.once("listening", resolve));
+
+  try {
+    const url = `http://127.0.0.1:${dailyServer.address().port}/api/market`;
+    const sameDay = await fetch(url);
+    const sameDayMarket = await sameDay.json();
+    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 2);
+    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "B").dailyChange, -2);
+
+    currentDate = "2026-10-22T12:00:00.000Z";
+    const nextDay = await fetch(url);
+    const nextDayMarket = await nextDay.json();
+    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 2);
+    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "B").dailyChange, -2);
+  } finally {
+    await new Promise((resolve, reject) => {
+      dailyServer.close((error) => error ? reject(error) : resolve());
+    });
+  }
+});

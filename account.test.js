@@ -115,6 +115,18 @@ test("vote submission persists a 3-up/3-down ballot and updates prices", async (
   assert.equal(priceA, 1.01);
   assert.equal(priceB, 1.01);
   assert.equal(marketPipeline[1].$set.prices.C.$max[1].$round[0].$multiply[1], 0.99);
+  assert.deepEqual(marketPipeline[1].$set.cumulativeChanges.A, {
+    $add: [
+      {
+        $ifNull: [
+          "$cumulativeChanges.A",
+          { $ifNull: ["$dailyChanges.A", 0] },
+        ],
+      },
+      1,
+    ],
+  });
+  assert.equal(marketPipeline[1].$set.cumulativeChanges.C.$add[1], -1);
   assert.equal(marketPipeline[1].$set.history.A.$slice[1], -120);
   assert.equal(result.market.stocks.length, 39);
 });

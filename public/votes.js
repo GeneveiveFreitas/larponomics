@@ -21,8 +21,12 @@ function renderAccount() {
     $("account-avatar").hidden = !account.user.avatarUrl;
   }
 
-  $("up-remaining").textContent = String(VOTES_PER_DIRECTION - voteTotal("up"));
-  $("down-remaining").textContent = String(VOTES_PER_DIRECTION - voteTotal("down"));
+  $("up-remaining").textContent = String(
+    account?.daily.submitted ? 0 : VOTES_PER_DIRECTION - voteTotal("up"),
+  );
+  $("down-remaining").textContent = String(
+    account?.daily.submitted ? 0 : VOTES_PER_DIRECTION - voteTotal("down"),
+  );
   $("submit-votes").disabled = !account || account.daily.submitted || submitting ||
     voteTotal("up") !== VOTES_PER_DIRECTION ||
     voteTotal("down") !== VOTES_PER_DIRECTION;

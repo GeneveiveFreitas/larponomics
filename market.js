@@ -50,6 +50,7 @@ const marketStateSchema = new mongoose.Schema(
     key: { type: String, required: true, unique: true },
     prices: { type: mongoose.Schema.Types.Mixed, required: true },
     history: { type: mongoose.Schema.Types.Mixed, required: true },
+    cumulativeChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
     updatedAt: { type: Date, default: Date.now },
   },
   { collection: "market_state", versionKey: false },
@@ -99,13 +100,16 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
       const previousPrice = history.length > 1
         ? history[history.length - 2]
         : price;
+      const dailyChange = state?.cumulativeChanges?.[stock.symbol] ??
+        state?.dailyChanges?.[stock.symbol] ??
+        (price / previousPrice - 1) * 100;
 
       return {
         symbol: stock.symbol,
         name: stock.name,
         initial: stock.initial,
         price,
-        dailyChange: (price / previousPrice - 1) * 100,
+        dailyChange,
         history: history.slice(-HISTORY_LIMIT),
       };
     }),
@@ -121,6 +125,7 @@ async function updateMarketPrices(
   const initial = initialMarketValues();
   const priceUpdates = {};
   const historyUpdates = {};
+  const cumulativeChangeUpdates = {};
 
   for (const stock of STOCKS) {
     const multiplier =
@@ -151,6 +156,17 @@ async function updateMarketPrices(
         -HISTORY_LIMIT,
       ],
     };
+    cumulativeChangeUpdates[stock.symbol] = {
+      $add: [
+        {
+          $ifNull: [
+            `$cumulativeChanges.${stock.symbol}`,
+            { $ifNull: [`$dailyChanges.${stock.symbol}`, 0] },
+          ],
+        },
+        (upVotes[stock.symbol] || 0) - (downVotes[stock.symbol] || 0),
+      ],
+    };
   }
 
   const initializedValues = initialMarketValues();
@@ -168,7 +184,14 @@ async function updateMarketPrices(
           },
         },
       },
-      { $set: { prices: priceUpdates, history: historyUpdates, updatedAt: new Date() } },
+      {
+        $set: {
+          prices: priceUpdates,
+          history: historyUpdates,
+          cumulativeChanges: cumulativeChangeUpdates,
+          updatedAt: new Date(),
+        },
+      },
     ],
     { new: true, upsert: true, updatePipeline: true, ...(session ? { session } : {}) },
   ).lean();
