@@ -387,34 +387,29 @@ button:focus-visible {
   font-size: clamp(16px, 2.5vw, 20px);
 }
 
-.home-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
+.home-graphic {
+  display: block;
   margin-top: 24px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgb(15 23 42 / 30%);
 }
 
-.home-link {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
+.home-graphic img {
+  display: block;
+  width: 100%;
+  height: auto;
   border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  text-decoration: none;
+  border-radius: 18px;
 }
 
-.home-link:hover {
-  background: #c00;
+.home-graphic:hover img {
+  filter: brightness(1.04) saturate(1.06);
 }
 
-.home-link:focus-visible {
+.home-graphic:focus-visible {
   outline: 3px solid rgb(37 99 235 / 65%);
-  outline-offset: 2px;
+  outline-offset: 4px;
 }
 
 .organizations-panel {
@@ -718,9 +713,8 @@ canvas {
     padding: 24px 16px;
   }
 
-  .home-links {
-    align-items: stretch;
-    flex-direction: column;
+  .home-graphic {
+    margin-top: 16px;
   }
 
   canvas {
