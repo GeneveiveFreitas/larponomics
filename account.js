@@ -325,4 +325,10 @@ function createAccountRouter({
   return router;
 }
 
-module.exports = { accountPayload, createAccountRouter, validVoteAllocation, VOTES_PER_DIRECTION };
+module.exports = {
+  accountPayload,
+  createAccountRouter,
+  validVoteAllocation,
+  VOTES_PER_DIRECTION,
+  Account,
+};

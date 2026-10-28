@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Account } = require("./account");
 const { connectDatabase } = require("./market");
 
 const ORGANIZATION_CATEGORIES = [
@@ -23,6 +24,7 @@ const Organization = organizationsDatabase.models.LarponomicsOrganization ||
 
 function createOrganizationsHandler({
   organizationModel = Organization,
+  accountModel = Account,
   connect = connectDatabase,
 } = {}) {
   return async function organizationsHandler(req, res) {
@@ -39,10 +41,37 @@ function createOrganizationsHandler({
         .find({}, { name: 1, director: 1, coDirector: 1, category: 1 })
         .sort({ name: 1 })
         .lean();
+      const usernames = [...new Set(organizations
+        .flatMap(({ director, coDirector }) => [director, coDirector])
+        .filter((username) => typeof username === "string" && username.trim())
+        .map((username) => username.trim()))];
+      const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const accounts = usernames.length
+        ? await accountModel.find(
+          { username: { $in: usernames.map((username) =>
+            new RegExp(`^${escapeRegex(username)}$`, "i")
+          ) } },
+          { discordId: 1, username: 1, avatar: 1 },
+        ).lean()
+        : [];
+      const accountsByUsername = new Map(accounts.map((account) => [
+        account.username.toLocaleLowerCase(),
+        {
+          username: account.username,
+          avatarUrl: account.avatar
+            ? `https://cdn.discordapp.com/avatars/${account.discordId}/${encodeURIComponent(account.avatar)}.png?size=96`
+            : `https://cdn.discordapp.com/embed/avatars/${(BigInt(account.discordId) >> 22n) % 6n}.png`,
+        },
+      ]));
+      const organizationsWithDirectors = organizations.map((organization) => ({
+        ...organization,
+        directorProfile: accountsByUsername.get(organization.director?.trim().toLocaleLowerCase()) || null,
+        coDirectorProfile: accountsByUsername.get(organization.coDirector?.trim().toLocaleLowerCase()) || null,
+      }));
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.statusCode = 200;
-      res.end(JSON.stringify({ organizations }));
+      res.end(JSON.stringify({ organizations: organizationsWithDirectors }));
     } catch (error) {
       console.error("Unable to load organizations:", error);
       res.setHeader("Content-Type", "application/json; charset=utf-8");

@@ -479,6 +479,28 @@ button:focus-visible {
   text-transform: capitalize;
 }
 
+.organization-profiles {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.organization-profile {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.organization-profile img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+}
+
 .voting-panel h2 {
   margin: 0;
   font-size: 20px;

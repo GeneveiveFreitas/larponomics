@@ -23,6 +23,18 @@ const storedOrganizations = [
     category: "corporations",
   },
 ];
+const storedAccounts = [
+  {
+    discordId: "123456",
+    username: "director",
+    avatar: "avatar-hash",
+  },
+  {
+    discordId: "987654",
+    username: "Co-director",
+    avatar: null,
+  },
+];
 const organizationModel = {
   find() {
     return {
@@ -33,13 +45,18 @@ const organizationModel = {
     };
   },
 };
+const accountModel = {
+  find() {
+    return { lean: async () => storedAccounts };
+  },
+};
 let server;
 let baseUrl;
 
 before(async () => {
   const app = createApp({
     marketState,
-    organizationOptions: { organizationModel, connect: async () => {} },
+    organizationOptions: { organizationModel, accountModel, connect: async () => {} },
     clock: () => new Date("2026-10-21T00:00:00.000Z"),
     connect: async () => {},
   });
@@ -116,11 +133,21 @@ test("app serves the home, market, and voting pages", async () => {
   assert.equal(organizationsScript.status, 200);
   assert.equal(organizationsApi.status, 200);
   assert.equal(oldOrganizationsApi.status, 404);
-  assert.deepEqual((await organizationsApi.json()).organizations, storedOrganizations);
+  const organizationsResult = await organizationsApi.json();
+  assert.deepEqual(organizationsResult.organizations[0].directorProfile, {
+    username: "director",
+    avatarUrl: "https://cdn.discordapp.com/avatars/123456/avatar-hash.png?size=96",
+  });
+  assert.deepEqual(organizationsResult.organizations[0].coDirectorProfile, {
+    username: "Co-director",
+    avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png",
+  });
   const organizationsScriptText = await organizationsScript.text();
   assert.match(organizationsScriptText, /fetch\("\/larpnomics\/organizations"/);
   assert.match(organizationsScriptText, /organization\.category === category/);
   assert.match(organizationsScriptText, /organization\.coDirector/);
+  assert.match(organizationsScriptText, /organization\.directorProfile/);
+  assert.match(organizationsScriptText, /organization\.coDirectorProfile/);
   assert.match(organizationsScriptText, /Co-director:/);
 });
 

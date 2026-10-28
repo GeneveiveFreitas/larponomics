@@ -24,6 +24,26 @@ function renderOrganizations() {
       organization.coDirector && `Co-director: ${organization.coDirector}`,
     ].filter(Boolean).join(" · ") || "Directors not listed";
     item.append(name, type, directors);
+
+    const profiles = document.createElement("div");
+    profiles.className = "organization-profiles";
+    for (const [role, profile] of [
+      ["Director", organization.directorProfile],
+      ["Co-director", organization.coDirectorProfile],
+    ]) {
+      if (!profile) continue;
+      const profileElement = document.createElement("div");
+      profileElement.className = "organization-profile";
+      const avatar = document.createElement("img");
+      avatar.src = profile.avatarUrl;
+      avatar.alt = "";
+      avatar.loading = "lazy";
+      const profileName = document.createElement("span");
+      profileName.textContent = `${role}: ${profile.username}`;
+      profileElement.append(avatar, profileName);
+      profiles.appendChild(profileElement);
+    }
+    if (profiles.childElementCount) item.appendChild(profiles);
     organizationList.appendChild(item);
   }
 
