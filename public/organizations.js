@@ -18,28 +18,42 @@ function renderOrganizations() {
     const type = document.createElement("span");
     type.className = "organization-category";
     type.textContent = organization.category;
-    const directors = document.createElement("p");
-    directors.textContent = organization.directors.length
-      ? organization.directors.map(({ name, role }) => `${role}: ${name}`).join(" · ")
-      : "Directors not listed";
-    item.append(name, type, directors);
+    item.append(name, type);
 
     const profiles = document.createElement("div");
     profiles.className = "organization-profiles";
-    for (const { role, profile } of organization.directors) {
-      if (!profile) continue;
+    for (const { name: directorName, role, profile } of organization.directors) {
       const profileElement = document.createElement("div");
       profileElement.className = "organization-profile";
-      const avatar = document.createElement("img");
-      avatar.src = profile.avatarUrl;
-      avatar.alt = "";
-      avatar.loading = "lazy";
+      if (profile?.avatarUrl) {
+        const avatar = document.createElement("img");
+        avatar.src = profile.avatarUrl;
+        avatar.alt = "";
+        avatar.loading = "lazy";
+        profileElement.appendChild(avatar);
+      } else {
+        const avatarPlaceholder = document.createElement("span");
+        avatarPlaceholder.className = "organization-avatar-placeholder";
+        avatarPlaceholder.setAttribute("aria-hidden", "true");
+        avatarPlaceholder.textContent = directorName.slice(0, 1).toUpperCase();
+        profileElement.appendChild(avatarPlaceholder);
+      }
+      const profileDetails = document.createElement("span");
+      profileDetails.className = "organization-profile-details";
+      const profileRole = document.createElement("strong");
+      profileRole.textContent = role;
       const profileName = document.createElement("span");
-      profileName.textContent = `${role}: ${profile.username}`;
-      profileElement.append(avatar, profileName);
+      profileName.textContent = profile?.username || directorName;
+      profileDetails.append(profileRole, profileName);
+      profileElement.appendChild(profileDetails);
       profiles.appendChild(profileElement);
     }
-    if (profiles.childElementCount) item.appendChild(profiles);
+    if (organization.directors.length) item.appendChild(profiles);
+    else {
+      const noDirectors = document.createElement("p");
+      noDirectors.textContent = "Directors not listed";
+      item.appendChild(noDirectors);
+    }
     organizationList.appendChild(item);
   }
 

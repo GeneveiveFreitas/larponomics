@@ -187,8 +187,10 @@ test("app serves the home, market, and voting pages", async () => {
   assert.match(organizationsScriptText, /fetch\("\/larpnomics\/organizations"/);
   assert.match(organizationsScriptText, /organization\.category === category/);
   assert.match(organizationsScriptText, /organization\.directors/);
-  assert.match(organizationsScriptText, /for \(const \{ role, profile \} of organization\.directors\)/);
-  assert.match(organizationsScriptText, /profileName\.textContent = `\$\{role\}: \$\{profile\.username\}`/);
+  assert.match(organizationsScriptText, /for \(const \{ name: directorName, role, profile \} of organization\.directors\)/);
+  assert.match(organizationsScriptText, /profileName\.textContent = profile\?\.username \|\| directorName/);
+  assert.match(organizationsScriptText, /organization-avatar-placeholder/);
+  assert.doesNotMatch(organizationsScriptText, /organization\.directors\.map\(\(\{ name, role \}\)/);
 });
 
 test("Vercel market function exports a request handler", () => {

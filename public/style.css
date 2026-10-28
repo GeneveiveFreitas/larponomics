@@ -494,11 +494,34 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.organization-profile-details {
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.organization-profile-details strong {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .organization-profile img {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
   border-radius: 50%;
+}
+
+.organization-avatar-placeholder {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #410202;
+  color: #fff;
+  font-weight: 700;
 }
 
 .voting-panel h2 {
