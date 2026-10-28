@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Organizations - Kethercraft Stock Market</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="header-top">
+        <nav class="site-nav" aria-label="Main navigation">
+          <a href="/index.html">Home</a>
+          <details class="site-nav-dropdown">
+            <summary class="site-nav-trigger">Market</summary>
+            <div class="site-nav-menu">
+              <a href="/market.html">Market</a>
+              <a href="/votes.html">Voting</a>
+            </div>
+          </details>
+          <a class="active" href="/organizations.html" aria-current="page">Organizations</a>
+        </nav>
+        <div class="account-bar">
+          <a id="discord-login" class="account-button" href="/api/auth/discord">Sign In</a>
+          <div id="account-user" hidden>
+            <img id="account-avatar" alt="" hidden>
+            <span id="account-username"></span>
+            <button id="logout-button" type="button">Sign Out</button>
+          </div>
+        </div>
+        <p id="account-message" class="account-message" role="status" aria-live="polite"></p>
+      </div>
+      <h1>Organizations</h1>
+    </header>
+    <main class="block organizations-panel">
+      <div class="organization-controls">
+        <label for="organization-category">Show organizations</label>
+        <select id="organization-category">
+          <option value="all">All categories</option>
+          <option value="corporations">Corporations</option>
+          <option value="fingers">Fingers</option>
+          <option value="offices">Offices</option>
+          <option value="associations">Associations</option>
+        </select>
+      </div>
+      <p id="organizations-message" class="market-message" role="status" aria-live="polite"></p>
+      <ul id="organization-list" class="organization-list" aria-label="Organizations and their leaders"></ul>
+    </main>
+  </div>
+<script src="home.js" defer></script>
+<script src="organizations.js" defer></script>
+</body>
+</html>

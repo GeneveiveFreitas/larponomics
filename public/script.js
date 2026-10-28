@@ -37,8 +37,6 @@ async function loadAccount() {
   } catch (error) {
     console.error("Unable to load account:", error);
     account = null;
-    $("market-message").classList.add("error");
-    $("market-message").textContent = "Unable to load your account. Please refresh and try again.";
   } finally {
     accountLoading = false;
     renderAccount();

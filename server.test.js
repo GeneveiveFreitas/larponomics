@@ -14,12 +14,32 @@ const marketState = {
     return { lean: async () => storedMarketState };
   },
 };
+const storedOrganizations = [
+  {
+    _id: "organization-1",
+    name: "Example Corp",
+    director: "Director",
+    coDirector: "Co-director",
+    category: "corporations",
+  },
+];
+const organizationModel = {
+  find() {
+    return {
+      sort() {
+        return this;
+      },
+      lean: async () => storedOrganizations,
+    };
+  },
+};
 let server;
 let baseUrl;
 
 before(async () => {
   const app = createApp({
     marketState,
+    organizationOptions: { organizationModel, connect: async () => {} },
     clock: () => new Date("2026-10-21T00:00:00.000Z"),
     connect: async () => {},
   });
@@ -53,22 +73,66 @@ test("market endpoint returns saved prices and price history", async () => {
   assert.equal(stockB.dailyChange, 0);
 });
 
-test("app serves the market and voting pages with their scripts", async () => {
+test("app serves the home, market, and voting pages", async () => {
   const page = await fetch(baseUrl);
+  const homePage = await fetch(`${baseUrl}/index.html`);
+  const marketPage = await fetch(`${baseUrl}/market.html`);
   const script = await fetch(`${baseUrl}/script.js`);
+  const homeScript = await fetch(`${baseUrl}/home.js`);
   const votingPage = await fetch(`${baseUrl}/votes.html`);
   const votingScript = await fetch(`${baseUrl}/votes.js`);
+  const organizationsPage = await fetch(`${baseUrl}/organizations.html`);
+  const organizationsScript = await fetch(`${baseUrl}/organizations.js`);
+  const organizationsApi = await fetch(`${baseUrl}/larpnomics/organizations`);
+  const oldOrganizationsApi = await fetch(`${baseUrl}/api/organizations`);
 
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Kethercraft Stock Market/);
+  const pageHtml = await page.text();
+  assert.match(pageHtml, /Welcome to Kethercraft/);
+  assert.equal(homePage.status, 200);
+  const homePageHtml = await homePage.text();
+  assert.match(homePageHtml, /href="\/market\.html"/);
+  assert.match(homePageHtml, /id="discord-login"/);
+  assert.match(homePageHtml, /id="logout-button"/);
+  assert.equal(homeScript.status, 200);
+  assert.match(await homeScript.text(), /api\/account/);
+  assert.equal(marketPage.status, 200);
+  const marketPageHtml = await marketPage.text();
+  assert.match(marketPageHtml, /id="list"/);
+  assert.match(marketPageHtml, /id="discord-login"/);
+  assert.match(marketPageHtml, /id="logout-button"/);
   assert.equal(script.status, 200);
   assert.equal(votingPage.status, 200);
-  assert.match(await votingPage.text(), /Voting/);
+  const votingPageHtml = await votingPage.text();
+  assert.match(votingPageHtml, /Voting/);
+  assert.match(votingPageHtml, /href="\/market\.html"/);
+  assert.match(votingPageHtml, /id="discord-login"/);
+  assert.match(votingPageHtml, /id="logout-button"/);
   assert.equal(votingScript.status, 200);
+  assert.equal(organizationsPage.status, 200);
+  const organizationsPageHtml = await organizationsPage.text();
+  assert.match(organizationsPageHtml, /Organizations and their leaders/);
+  assert.match(organizationsPageHtml, /organization-category/);
+  assert.equal(organizationsScript.status, 200);
+  assert.equal(organizationsApi.status, 200);
+  assert.equal(oldOrganizationsApi.status, 404);
+  assert.deepEqual((await organizationsApi.json()).organizations, storedOrganizations);
+  const organizationsScriptText = await organizationsScript.text();
+  assert.match(organizationsScriptText, /fetch\("\/larpnomics\/organizations"/);
+  assert.match(organizationsScriptText, /organization\.category === category/);
+  assert.match(organizationsScriptText, /organization\.coDirector/);
+  assert.match(organizationsScriptText, /Co-director:/);
 });
 
 test("Vercel market function exports a request handler", () => {
   assert.equal(typeof require("./api/market"), "function");
+});
+
+test("organizations model reads from larponomics.organizations", () => {
+  const { Organization } = require("./organizations");
+
+  assert.equal(Organization.db.name, "larponomics");
+  assert.equal(Organization.collection.collectionName, "organizations");
 });
 
 test("Vercel account endpoints export request handlers", () => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kethercraft Stock Market</title>
+<title>Home - Kethercraft Stock Market</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,8 +11,15 @@
     <header>
       <div class="header-top">
         <nav class="site-nav" aria-label="Main navigation">
-          <a class="active" href="/index.html">Market</a>
-          <a href="/votes.html">Voting</a>
+          <a class="active" href="/index.html" aria-current="page">Home</a>
+          <details class="site-nav-dropdown">
+            <summary class="site-nav-trigger">Market</summary>
+            <div class="site-nav-menu">
+              <a href="/market.html">Market</a>
+              <a href="/votes.html">Voting</a>
+            </div>
+          </details>
+          <a href="/organizations.html">Organizations</a>
         </nav>
         <div class="account-bar">
           <a id="discord-login" class="account-button" href="/api/auth/discord">Sign In</a>
@@ -22,36 +29,18 @@
             <button id="logout-button" type="button">Sign Out</button>
           </div>
         </div>
+        <p id="account-message" class="account-message" role="status" aria-live="polite"></p>
       </div>
-      <h1>Kethercraft Stock Market</h1>
+      <h1>Welcome to Kethercraft</h1>
     </header>
-    <div class="layout">
-      <div class="block">
-        <div class="list-controls">
-          <label for="price-sort">Sort by price</label>
-          <select id="price-sort">
-            <option value="asc">Lowest first</option>
-            <option value="desc">Highest first</option>
-          </select>
-        </div>
-        <p class="market-message" id="market-message" role="status" aria-live="polite"></p>
-        <div class="list" id="list"></div>
-      </div>
-      <div>
-        <div class="block">
-          <div class="top">
-            <div>
-              <div class="sym detail-symbol" id="dSym"></div>
-              <div class="nm" id="dName"></div>
-            </div>
-          </div>
-          <div class="big" id="dPrice"></div>
-          <canvas id="chart" width="800" height="280" aria-label="Price chart"></canvas>
-          <div class="stats" id="stats"></div>
-        </div>
-      </div>
-    </div>
+    <main class="block home-panel">
+      <p></p>
+      <nav class="home-links" aria-label="Explore Kethercraft">
+        <a class="home-link" href="/market.html">Stock Market</a>
+        <a class="home-link" href="/votes.html">Stock Market Voting</a>
+      </nav>
+    </main>
   </div>
-<script src="script.js" defer></script>
+<script src="home.js" defer></script>
 </body>
 </html>

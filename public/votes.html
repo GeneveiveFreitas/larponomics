@@ -11,8 +11,15 @@
     <header>
       <div class="header-top">
         <nav class="site-nav" aria-label="Main navigation">
-          <a href="/index.html">Market</a>
-          <a class="active" href="/votes.html">Voting</a>
+          <a href="/index.html">Home</a>
+          <details class="site-nav-dropdown">
+            <summary class="site-nav-trigger active">Market</summary>
+            <div class="site-nav-menu">
+              <a href="/market.html">Market</a>
+              <a class="active" href="/votes.html" aria-current="page">Voting</a>
+            </div>
+          </details>
+          <a href="/organizations.html">Organizations</a>
         </nav>
         <div class="account-bar">
           <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>

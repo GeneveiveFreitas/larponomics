@@ -55,6 +55,20 @@ header {
   color: #fff;
 }
 
+.account-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.account-message:empty {
+  display: none;
+}
+
+.account-message.error {
+  color: var(--red);
+}
+
 .account-bar,
 #account-user {
   display: flex;
@@ -98,7 +112,13 @@ header {
   gap: 8px;
 }
 
+.site-nav-dropdown {
+  position: relative;
+}
+
+.site-nav-trigger,
 .site-nav a {
+  display: block;
   padding: 7px 12px;
   border-radius: 8px;
   color: #fff;
@@ -106,10 +126,57 @@ header {
   background: rgb(65, 2, 2);
 }
 
+.site-nav-trigger {
+  cursor: pointer;
+  list-style: none;
+}
+
+.site-nav-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.site-nav-trigger::after {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 0 3px 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.site-nav-dropdown[open] .site-nav-trigger::after {
+  margin-bottom: 0;
+  transform: rotate(225deg);
+}
+
+.site-nav-menu {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  min-width: 140px;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #000;
+}
+
+.site-nav-trigger.active,
+.site-nav-trigger:hover,
 .site-nav a.active,
 .site-nav a:hover {
   border-color: #888;
   background: #f70000;
+}
+
+.site-nav-trigger:focus-visible,
+.site-nav a:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 65%);
+  outline-offset: 2px;
 }
 
 h1 {
@@ -308,6 +375,110 @@ button:focus-visible {
   margin: 0 auto;
 }
 
+.home-panel {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(24px, 6vw, 56px);
+  text-align: center;
+}
+
+.home-panel p {
+  margin: 0;
+  font-size: clamp(16px, 2.5vw, 20px);
+}
+
+.home-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.home-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+}
+
+.home-link:hover {
+  background: #c00;
+}
+
+.home-link:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 65%);
+  outline-offset: 2px;
+}
+
+.organizations-panel {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.organization-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.organization-controls select {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-muted);
+  color: var(--text);
+  font: inherit;
+}
+
+.organization-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 6px 0 0;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.organization-card {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-muted);
+}
+
+.organization-card h2 {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.organization-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.organization-category {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
 .voting-panel h2 {
   margin: 0;
   font-size: 20px;
@@ -442,12 +613,14 @@ canvas {
 
 @media (max-width: 480px) {
   .header-top {
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
     margin-bottom: 16px;
   }
 
   .site-nav {
+    flex: 1 1 100%;
     gap: 5px;
   }
 
@@ -456,10 +629,34 @@ canvas {
     font-size: 12px;
   }
 
+  .site-nav-trigger {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .site-nav-dropdown[open] .site-nav-menu {
+    position: static;
+    min-width: 160px;
+    margin-top: 6px;
+  }
+
+  .site-nav-menu a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
   .account-bar,
   #account-user {
     gap: 6px;
     font-size: 12px;
+  }
+
+  .account-bar {
+    margin-left: auto;
   }
 
   .account-button,
@@ -470,6 +667,15 @@ canvas {
 
   .block {
     padding: 16px;
+  }
+
+  .home-panel {
+    padding: 24px 16px;
+  }
+
+  .home-links {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   canvas {
