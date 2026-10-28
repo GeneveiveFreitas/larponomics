@@ -19,18 +19,14 @@ function renderOrganizations() {
     type.className = "organization-category";
     type.textContent = organization.category;
     const directors = document.createElement("p");
-    directors.textContent = [
-      organization.director && `Director: ${organization.director}`,
-      organization.coDirector && `Co-director: ${organization.coDirector}`,
-    ].filter(Boolean).join(" · ") || "Directors not listed";
+    directors.textContent = organization.directors.length
+      ? organization.directors.map(({ name, role }) => `${role}: ${name}`).join(" · ")
+      : "Directors not listed";
     item.append(name, type, directors);
 
     const profiles = document.createElement("div");
     profiles.className = "organization-profiles";
-    for (const [role, profile] of [
-      ["Director", organization.directorProfile],
-      ["Co-director", organization.coDirectorProfile],
-    ]) {
+    for (const { role, profile } of organization.directors) {
       if (!profile) continue;
       const profileElement = document.createElement("div");
       profileElement.className = "organization-profile";

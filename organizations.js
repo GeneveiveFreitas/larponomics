@@ -9,9 +9,18 @@ const ORGANIZATION_CATEGORIES = [
   "associations",
 ];
 
+const directorSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    role: { type: String, default: "Director", trim: true },
+  },
+  { _id: false },
+);
+
 const organizationSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    directors: { type: [directorSchema], default: [] },
     director: { type: String, default: "", trim: true },
     coDirector: { type: String, default: "", trim: true },
     category: { type: String, required: true, enum: ORGANIZATION_CATEGORIES },
@@ -38,13 +47,26 @@ function createOrganizationsHandler({
     try {
       await connect();
       const organizations = await organizationModel
-        .find({}, { name: 1, director: 1, coDirector: 1, category: 1 })
+        .find({}, { name: 1, directors: 1, director: 1, coDirector: 1, category: 1 })
         .sort({ name: 1 })
         .lean();
+      const getDirectors = (organization) => {
+        if (Array.isArray(organization.directors) && organization.directors.length) {
+          return organization.directors
+            .filter((director) => typeof director.name === "string" && director.name.trim())
+            .map((director) => ({
+              name: director.name.trim(),
+              role: director.role?.trim() || "Director",
+            }));
+        }
+        return [
+          organization.director && { name: organization.director.trim(), role: "Director" },
+          organization.coDirector && { name: organization.coDirector.trim(), role: "Co-director" },
+        ].filter((director) => director?.name);
+      };
       const usernames = [...new Set(organizations
-        .flatMap(({ director, coDirector }) => [director, coDirector])
-        .filter((username) => typeof username === "string" && username.trim())
-        .map((username) => username.trim()))];
+        .flatMap(getDirectors)
+        .map(({ name }) => name))];
       const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const accounts = usernames.length
         ? await accountModel.find(
@@ -64,9 +86,13 @@ function createOrganizationsHandler({
         },
       ]));
       const organizationsWithDirectors = organizations.map((organization) => ({
-        ...organization,
-        directorProfile: accountsByUsername.get(organization.director?.trim().toLocaleLowerCase()) || null,
-        coDirectorProfile: accountsByUsername.get(organization.coDirector?.trim().toLocaleLowerCase()) || null,
+        _id: organization._id,
+        name: organization.name,
+        category: organization.category,
+        directors: getDirectors(organization).map((director) => ({
+          ...director,
+          profile: accountsByUsername.get(director.name.toLocaleLowerCase()) || null,
+        })),
       }));
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json; charset=utf-8");

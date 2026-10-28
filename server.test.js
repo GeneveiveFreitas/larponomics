@@ -18,8 +18,18 @@ const storedOrganizations = [
   {
     _id: "organization-1",
     name: "Example Corp",
-    director: "Director",
-    coDirector: "Co-director",
+    directors: [
+      { name: "Director", role: "Director" },
+      { name: "Co-director", role: "Co-director" },
+      { name: "Third director", role: "Director" },
+    ],
+    category: "corporations",
+  },
+  {
+    _id: "organization-2",
+    name: "Legacy Corp",
+    director: "Legacy director",
+    coDirector: "Legacy co-director",
     category: "corporations",
   },
 ];
@@ -33,6 +43,11 @@ const storedAccounts = [
     discordId: "987654",
     username: "Co-director",
     avatar: null,
+  },
+  {
+    discordId: "555555",
+    username: "Third director",
+    avatar: "third-avatar",
   },
 ];
 const organizationModel = {
@@ -134,21 +149,46 @@ test("app serves the home, market, and voting pages", async () => {
   assert.equal(organizationsApi.status, 200);
   assert.equal(oldOrganizationsApi.status, 404);
   const organizationsResult = await organizationsApi.json();
-  assert.deepEqual(organizationsResult.organizations[0].directorProfile, {
-    username: "director",
-    avatarUrl: "https://cdn.discordapp.com/avatars/123456/avatar-hash.png?size=96",
-  });
-  assert.deepEqual(organizationsResult.organizations[0].coDirectorProfile, {
-    username: "Co-director",
-    avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png",
-  });
+  assert.deepEqual(organizationsResult.organizations[0].directors.map(({ name, role, profile }) => ({
+    name,
+    role,
+    profile,
+  })), [
+    {
+      name: "Director",
+      role: "Director",
+      profile: {
+        username: "director",
+        avatarUrl: "https://cdn.discordapp.com/avatars/123456/avatar-hash.png?size=96",
+      },
+    },
+    {
+      name: "Co-director",
+      role: "Co-director",
+      profile: {
+        username: "Co-director",
+        avatarUrl: "https://cdn.discordapp.com/embed/avatars/0.png",
+      },
+    },
+    {
+      name: "Third director",
+      role: "Director",
+      profile: {
+        username: "Third director",
+        avatarUrl: "https://cdn.discordapp.com/avatars/555555/third-avatar.png?size=96",
+      },
+    },
+  ]);
+  assert.deepEqual(organizationsResult.organizations[1].directors, [
+    { name: "Legacy director", role: "Director", profile: null },
+    { name: "Legacy co-director", role: "Co-director", profile: null },
+  ]);
   const organizationsScriptText = await organizationsScript.text();
   assert.match(organizationsScriptText, /fetch\("\/larpnomics\/organizations"/);
   assert.match(organizationsScriptText, /organization\.category === category/);
-  assert.match(organizationsScriptText, /organization\.coDirector/);
-  assert.match(organizationsScriptText, /organization\.directorProfile/);
-  assert.match(organizationsScriptText, /organization\.coDirectorProfile/);
-  assert.match(organizationsScriptText, /Co-director:/);
+  assert.match(organizationsScriptText, /organization\.directors/);
+  assert.match(organizationsScriptText, /for \(const \{ role, profile \} of organization\.directors\)/);
+  assert.match(organizationsScriptText, /profileName\.textContent = `\$\{role\}: \$\{profile\.username\}`/);
 });
 
 test("Vercel market function exports a request handler", () => {
