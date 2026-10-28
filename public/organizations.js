@@ -6,7 +6,7 @@ let organizations = [];
 function renderOrganizations() {
   const category = categoryFilter.value;
   const filteredOrganizations = organizations.filter((organization) =>
-    category === "all" || organization.category === category
+    organization.category === category
   );
   organizationList.replaceChildren();
 

@@ -145,6 +145,8 @@ test("app serves the home, market, and voting pages", async () => {
   const organizationsPageHtml = await organizationsPage.text();
   assert.match(organizationsPageHtml, /Organizations and their leaders/);
   assert.match(organizationsPageHtml, /organization-category/);
+  assert.match(organizationsPageHtml, /<option value="corporations" selected>Corporations<\/option>/);
+  assert.doesNotMatch(organizationsPageHtml, /All categories/);
   assert.equal(organizationsScript.status, 200);
   assert.equal(organizationsApi.status, 200);
   assert.equal(oldOrganizationsApi.status, 404);
