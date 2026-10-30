@@ -191,14 +191,25 @@ function renderMarketEvents(events) {
     }
     header.append(title);
 
-    const stock = document.createElement("p");
-    stock.className = "market-event-stock";
-    stock.textContent =
-      `${event.stockSymbol} — ${event.stockName}: ` +
-      `${event.direction === "increase" ? "+" : "-"}${Number(event.amount).toFixed(2)}%`;
+    const stockList = document.createElement("div");
+    stockList.className = "market-event-stock-list";
+    const changes = Array.isArray(event.changes)
+      ? event.changes
+      : [{
+        stockSymbol: event.stockSymbol,
+        stockName: event.stockName,
+        direction: event.direction,
+        amount: event.amount,
+      }];
+    for (const change of changes) {
+      const stock = document.createElement("span");
+      stock.textContent =
+        `${change.stockSymbol} ${change.direction === "increase" ? "+" : "-"}${Number(change.amount).toFixed(2)}%`;
+      stockList.appendChild(stock);
+    }
     const description = document.createElement("p");
     description.textContent = event.description;
-    item.append(header, stock, description);
+    item.append(header, stockList, description);
     if (time.textContent) item.appendChild(time);
     group.appendChild(item);
   }

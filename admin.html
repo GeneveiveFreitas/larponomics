@@ -59,7 +59,7 @@
       </section>
       <section class="block admin-section" aria-labelledby="events-heading">
         <h2 id="events-heading">Create a market event</h2>
-        <p>Creating an event immediately applies its percentage change and publishes the event on the market page.</p>
+        <p>Add one or more stocks and customize each percentage change. Creating an event immediately applies the changes and publishes it on the market page.</p>
         <form id="event-form" class="admin-form">
           <label>Event title
             <input id="event-title" type="text" maxlength="100" required>
@@ -67,19 +67,9 @@
           <label>Description
             <textarea id="event-description" rows="4" maxlength="1000" required></textarea>
           </label>
+          <div id="event-changes" class="event-changes" aria-label="Stock changes"></div>
           <div class="admin-inline-form">
-            <label>Stock
-              <select id="event-symbol" required></select>
-            </label>
-            <label>Change
-              <select id="event-direction" required>
-                <option value="increase">Increase</option>
-                <option value="decrease">Decrease</option>
-              </select>
-            </label>
-            <label>Amount (%)
-              <input id="event-amount" type="number" min="0.01" max="100" step="0.01" required>
-            </label>
+            <button id="add-event-change" type="button">Add another stock</button>
             <button type="submit">Create event</button>
           </div>
         </form>

@@ -31,19 +31,21 @@ const marketState = {
     } else {
       const set = update[0].$set;
       if (set.events) {
-        const event = set.events.$slice[0].$concatArrays[1][0];
-        const symbol = event.stockSymbol;
-        const basePrice = storedMarketState.prices[symbol] ?? initialPrices[symbol];
-        const change = event.direction === "increase" ? event.amount : -event.amount;
-        const nextPrice = Math.max(1, Math.round(basePrice * (1 + change / 100) * 100) / 100);
-        const previousDailyChange = storedMarketState.dailyChanges?.[symbol] ?? 0;
-        storedMarketState.prices[symbol] = nextPrice;
-        storedMarketState.history[symbol] = [
-          ...(storedMarketState.history[symbol] || [basePrice]),
-          nextPrice,
-        ].slice(-120);
-        storedMarketState.dailyChanges[symbol] =
-          Math.round(((previousDailyChange + 100) * (1 + change / 100) - 100) * 100) / 100;
+        const event = set.events.$slice[0].$concatArrays[1][0].$literal;
+        for (const change of event.changes) {
+          const symbol = change.stockSymbol;
+          const basePrice = storedMarketState.prices[symbol] ?? initialPrices[symbol];
+          const signedChange = change.direction === "increase" ? change.amount : -change.amount;
+          const nextPrice = Math.max(1, Math.round(basePrice * (1 + signedChange / 100) * 100) / 100);
+          const previousDailyChange = storedMarketState.dailyChanges?.[symbol] ?? 0;
+          storedMarketState.prices[symbol] = nextPrice;
+          storedMarketState.history[symbol] = [
+            ...(storedMarketState.history[symbol] || [basePrice]),
+            nextPrice,
+          ].slice(-120);
+          storedMarketState.dailyChanges[symbol] =
+            Math.round(((previousDailyChange + 100) * (1 + signedChange / 100) - 100) * 100) / 100;
+        }
         storedMarketState.events = [...(storedMarketState.events || []), event].slice(-50);
       } else {
         storedMarketState.prices = { ...initialPrices };
@@ -117,7 +119,7 @@ test("admin page and APIs require the configured Discord account", async () => {
   const adminPage = await authorizedPage.text();
   assert.match(adminPage, /Admin Settings/);
   assert.match(adminPage, /id="event-form"/);
-  assert.match(adminPage, /id="event-amount"/);
+  assert.match(adminPage, /id="event-changes"/);
 
   const accountResponse = await fetch(`${baseUrl}/api/account`, {
     headers: { Cookie: "larponomics_session=test-session" },
@@ -158,12 +160,30 @@ test("admin page and APIs require the configured Discord account", async () => {
     body: JSON.stringify({
       title: "Bad event",
       description: "Invalid adjustment",
-      stockSymbol: "NOPE",
-      direction: "increase",
-      amount: 10,
+      changes: [{
+        stockSymbol: "NOPE",
+        direction: "increase",
+        amount: 10,
+      }],
     }),
   });
   assert.equal(invalidEvent.status, 400);
+  const duplicateStockEvent = await fetch(`${baseUrl}/api/admin/events`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: "Duplicate stocks",
+      description: "Invalid duplicate selection",
+      changes: [
+        { stockSymbol: "A", direction: "increase", amount: 5 },
+        { stockSymbol: "A", direction: "decrease", amount: 10 },
+      ],
+    }),
+  });
+  assert.equal(duplicateStockEvent.status, 400);
 
   const createdEvent = await fetch(`${baseUrl}/api/admin/events`, {
     method: "POST",
@@ -174,21 +194,26 @@ test("admin page and APIs require the configured Discord account", async () => {
     body: JSON.stringify({
       title: "Festival boom",
       description: "Demand rose across the market.",
-      stockSymbol: "A",
-      direction: "increase",
-      amount: 10,
+      changes: [
+        { stockSymbol: "A", direction: "increase", amount: 10 },
+        { stockSymbol: "B", direction: "decrease", amount: 20 },
+      ],
     }),
   });
   assert.equal(createdEvent.status, 201);
   const { event } = await createdEvent.json();
   assert.equal(event.title, "Festival boom");
-  assert.equal(event.amount, 10);
+  assert.equal(event.changes.length, 2);
+  assert.equal(event.changes[1].amount, 20);
   assert.equal(storedMarketState.prices.A, 1980);
+  assert.equal(storedMarketState.prices.B, 960);
 
   const publicMarketResponse = await fetch(`${baseUrl}/api/market`);
   const publicMarket = await publicMarketResponse.json();
   assert.equal(publicMarket.stocks.find(({ symbol }) => symbol === "A").price, 1980);
+  assert.equal(publicMarket.stocks.find(({ symbol }) => symbol === "B").price, 960);
   assert.equal(publicMarket.events[0].title, "Festival boom");
+  assert.equal(publicMarket.events[0].changes.length, 2);
 });
 
 test("admin deployment uses one serverless function for all settings routes", () => {

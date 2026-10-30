@@ -604,6 +604,52 @@ button:focus-visible {
   flex: 1 1 180px;
 }
 
+.event-changes {
+  display: grid;
+  gap: 8px;
+}
+
+.event-change-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-muted);
+}
+
+.event-change-row label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.event-change-row select,
+.event-change-row input,
+.event-change-row button {
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.event-change-row button {
+  width: auto;
+  cursor: pointer;
+}
+
+.event-change-row button:hover {
+  background: #7f1d1d;
+}
+
 .market-events {
   margin: 0 0 20px;
   padding: 14px 18px;
@@ -688,6 +734,22 @@ button:focus-visible {
   font-weight: 700;
 }
 
+.market-event-stock-list {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+  color: #ffe66d;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: normal;
+}
+
+.market-event-stock-list span {
+  flex: 0 0 auto;
+}
+
 .market-event-card p {
   margin: 0;
   overflow: hidden;
@@ -695,6 +757,10 @@ button:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+
+.market-event-stock-list span {
+  overflow-wrap: anywhere;
 }
 
 .market-events:hover .market-event-track,
@@ -805,6 +871,10 @@ canvas {
 
   .block {
     padding: 16px;
+  }
+
+  .event-change-row {
+    grid-template-columns: 1fr 1fr;
   }
 
   .home-panel {

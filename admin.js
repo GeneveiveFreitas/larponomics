@@ -91,25 +91,41 @@ function parseMarketEvent(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
-  const stockSymbol = body.stockSymbol;
-  const direction = body.direction;
-  const amount = body.amount;
+  const changes = body.changes;
   if (
     !title || title.length > 100 ||
     !description || description.length > 1000 ||
-    !STOCKS_BY_SYMBOL.has(stockSymbol) ||
-    !["increase", "decrease"].includes(direction) ||
-    typeof amount !== "number" || !Number.isFinite(amount) ||
-    amount <= 0 || amount > 100 ||
-    Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8
+    !Array.isArray(changes) ||
+    changes.length < 1 ||
+    changes.length > STOCKS.length
   ) return null;
+
+  const seenSymbols = new Set();
+  const parsedChanges = [];
+  for (const change of changes) {
+    if (!change || typeof change !== "object" || Array.isArray(change)) return null;
+    const { stockSymbol, direction, amount } = change;
+    if (
+      !STOCKS_BY_SYMBOL.has(stockSymbol) ||
+      seenSymbols.has(stockSymbol) ||
+      !["increase", "decrease"].includes(direction) ||
+      typeof amount !== "number" || !Number.isFinite(amount) ||
+      amount <= 0 || amount > 100 ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8
+    ) return null;
+    seenSymbols.add(stockSymbol);
+    parsedChanges.push({
+      stockSymbol,
+      stockName: STOCKS_BY_SYMBOL.get(stockSymbol).name,
+      direction,
+      amount,
+    });
+  }
+
   return {
     title,
     description,
-    stockSymbol,
-    stockName: STOCKS_BY_SYMBOL.get(stockSymbol).name,
-    direction,
-    amount,
+    changes: parsedChanges,
   };
 }
 
@@ -277,37 +293,44 @@ function createAdminRouter({
       const now = clock();
       const today = utcDateString(now);
       await advanceMarketDay(marketState, today, { random, now });
-      const { stockSymbol: symbol, direction, amount } = event;
-      const stock = STOCKS_BY_SYMBOL.get(symbol);
-      const signedChange = direction === "increase" ? amount : -amount;
-      const currentPrice = { $ifNull: [`$prices.${symbol}`, stock.initial] };
-      const nextPrice = {
-        $max: [
-          1,
-          {
-            $round: [{
-              $multiply: [currentPrice, 1 + signedChange / 100],
-            }, 2],
-          },
-        ],
-      };
+      const changesBySymbol = new Map(event.changes.map((change) => [
+        change.stockSymbol,
+        change,
+      ]));
       const nextPrices = {};
       const nextHistory = {};
       const nextChanges = {};
       for (const entry of STOCKS) {
-        nextPrices[entry.symbol] = entry.symbol === symbol
-          ? nextPrice
+        const change = changesBySymbol.get(entry.symbol);
+        const signedChange = !change
+          ? 0
+          : change.direction === "increase" ? change.amount : -change.amount;
+        const adjustedPrice = {
+          $max: [
+            1,
+            {
+              $round: [{
+                $multiply: [
+                  { $ifNull: [`$prices.${entry.symbol}`, entry.initial] },
+                  1 + signedChange / 100,
+                ],
+              }, 2],
+            },
+          ],
+        };
+        nextPrices[entry.symbol] = change
+          ? adjustedPrice
           : { $ifNull: [`$prices.${entry.symbol}`, entry.initial] };
         nextHistory[entry.symbol] = historyExpression(
           entry.symbol,
-          entry.symbol === symbol ? nextPrice : undefined,
+          change ? adjustedPrice : undefined,
         );
-        nextChanges[entry.symbol] = entry.symbol === symbol
+        nextChanges[entry.symbol] = change
           ? {
             $round: [{
               $subtract: [{
                 $multiply: [
-                  { $add: [{ $ifNull: [`$dailyChanges.${symbol}`, 0] }, 100] },
+                  { $add: [{ $ifNull: [`$dailyChanges.${entry.symbol}`, 0] }, 100] },
                   1 + signedChange / 100,
                 ],
               }, 100],
@@ -328,7 +351,12 @@ function createAdminRouter({
             updatedAt: now,
             events: {
               $slice: [
-                { $concatArrays: [{ $ifNull: ["$events", []] }, [savedEvent]] },
+                {
+                  $concatArrays: [
+                    { $ifNull: ["$events", []] },
+                    [{ $literal: savedEvent }],
+                  ],
+                },
                 -MARKET_EVENT_LIMIT,
               ],
             },

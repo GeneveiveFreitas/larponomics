@@ -3,12 +3,14 @@ const rangeForm = document.getElementById("range-form");
 const priceForm = document.getElementById("price-form");
 const eventForm = document.getElementById("event-form");
 const priceSymbol = document.getElementById("price-symbol");
-const eventSymbol = document.getElementById("event-symbol");
+const eventChanges = document.getElementById("event-changes");
+const addEventChangeButton = document.getElementById("add-event-change");
 const organizationSelect = document.getElementById("organization-select");
 const organizationForm = document.getElementById("organization-form");
 const deleteOrganizationButton = document.getElementById("delete-organization");
 let organizations = [];
 let stocks = [];
+let nextEventChangeId = 0;
 
 function showMessage(message, isError = false) {
   adminMessage.textContent = message;
@@ -81,19 +83,80 @@ async function loadMarketSettings() {
   priceSymbol.replaceChildren(...stocks.map((stock) =>
     new Option(`${stock.symbol} — ${stock.name}`, stock.symbol)
   ));
-  const selectedEventSymbol = eventSymbol.value;
-  eventSymbol.replaceChildren(...stocks.map((stock) =>
-    new Option(`${stock.symbol} — ${stock.name}`, stock.symbol)
-  ));
-  if (stocks.some(({ symbol }) => symbol === selectedEventSymbol)) {
-    eventSymbol.value = selectedEventSymbol;
-  }
+  if (!eventChanges.children.length && stocks.length) addEventChangeRow();
+  updateEventStockOptions();
   if (stocks.length) {
     const selectedStock = stocks.find(({ symbol }) => symbol === selectedSymbol) || stocks[0];
     priceSymbol.value = selectedStock.symbol;
     document.getElementById("price-value").value = selectedStock.price;
   }
 }
+
+function updateEventStockOptions() {
+  const rows = [...eventChanges.querySelectorAll(".event-change-row")];
+  const selectedSymbols = rows.map((row) => row.querySelector(".event-stock-symbol").value);
+  rows.forEach((row, rowIndex) => {
+    const select = row.querySelector(".event-stock-symbol");
+    const currentSymbol = selectedSymbols[rowIndex];
+    select.replaceChildren(...stocks.map((stock) => {
+      const option = new Option(`${stock.symbol} — ${stock.name}`, stock.symbol);
+      option.disabled = selectedSymbols.includes(stock.symbol) && stock.symbol !== currentSymbol;
+      return option;
+    }));
+    select.value = currentSymbol || stocks.find(({ symbol }) => !selectedSymbols.includes(symbol))?.symbol || "";
+    row.querySelector("button").disabled = rows.length === 1;
+  });
+  addEventChangeButton.disabled = rows.length >= stocks.length;
+}
+
+function addEventChangeRow() {
+  if (eventChanges.children.length >= stocks.length) return;
+  const row = document.createElement("div");
+  row.className = "event-change-row";
+  row.dataset.changeId = String(nextEventChangeId++);
+
+  const stockLabel = document.createElement("label");
+  stockLabel.textContent = "Stock";
+  const stock = document.createElement("select");
+  stock.className = "event-stock-symbol";
+  stock.required = true;
+  stockLabel.appendChild(stock);
+
+  const directionLabel = document.createElement("label");
+  directionLabel.textContent = "Direction";
+  const direction = document.createElement("select");
+  direction.className = "event-stock-direction";
+  direction.required = true;
+  direction.add(new Option("Increase", "increase"));
+  direction.add(new Option("Decrease", "decrease"));
+  directionLabel.appendChild(direction);
+
+  const amountLabel = document.createElement("label");
+  amountLabel.textContent = "Change (%)";
+  const amount = document.createElement("input");
+  amount.className = "event-stock-amount";
+  amount.type = "number";
+  amount.min = "0.01";
+  amount.max = "100";
+  amount.step = "0.01";
+  amount.required = true;
+  amountLabel.appendChild(amount);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "Remove";
+  remove.setAttribute("aria-label", "Remove this stock change");
+  remove.addEventListener("click", () => {
+    row.remove();
+    updateEventStockOptions();
+  });
+  stock.addEventListener("change", updateEventStockOptions);
+  row.append(stockLabel, directionLabel, amountLabel, remove);
+  eventChanges.appendChild(row);
+  updateEventStockOptions();
+}
+
+addEventChangeButton.addEventListener("click", addEventChangeRow);
 
 eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -103,12 +166,16 @@ eventForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         title: document.getElementById("event-title").value,
         description: document.getElementById("event-description").value,
-        stockSymbol: eventSymbol.value,
-        direction: document.getElementById("event-direction").value,
-        amount: Number(document.getElementById("event-amount").value),
+        changes: [...eventChanges.querySelectorAll(".event-change-row")].map((row) => ({
+          stockSymbol: row.querySelector(".event-stock-symbol").value,
+          direction: row.querySelector(".event-stock-direction").value,
+          amount: Number(row.querySelector(".event-stock-amount").value),
+        })),
       }),
     });
     eventForm.reset();
+    eventChanges.replaceChildren();
+    addEventChangeRow();
     showMessage("Event created, stock price adjusted, and event published on the market page.");
     await loadMarketSettings();
   } catch (error) {
