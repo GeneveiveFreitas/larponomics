@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
 const { createApp } = require("./server");
+const { randomDailyChange, STOCKS } = require("./market");
 
 const storedMarketState = {
   prices: { A: 1854.36, B: 1200 },
@@ -8,12 +9,37 @@ const storedMarketState = {
     A: [1800, 1836, 1854.36],
     B: [1200, 1200, 1200],
   },
+  dailyChanges: { A: 1, B: 0 },
+  marketDate: "2026-10-21",
 };
-const marketState = {
-  findOne() {
-    return { lean: async () => storedMarketState };
-  },
-};
+const initialPrices = Object.fromEntries(STOCKS.map(({ symbol, initial }) => [symbol, initial]));
+
+function createMarketState(initialState = null) {
+  let state = initialState ? structuredClone(initialState) : null;
+  return {
+    findOne() {
+      return { lean: async () => state };
+    },
+    findOneAndUpdate(filter, update) {
+      if (!Array.isArray(update)) {
+        state ||= structuredClone(update.$setOnInsert);
+      } else if (state.marketDate !== filter.marketDate.$ne) {
+        const { dailyChanges, marketDate, updatedAt } = update[0].$set;
+        for (const [symbol, change] of Object.entries(dailyChanges)) {
+          const basePrice = state.prices[symbol] ?? initialPrices[symbol];
+          const nextPrice = Math.max(1, Math.round(basePrice * (1 + change / 100) * 100) / 100);
+          state.prices[symbol] = nextPrice;
+          state.history[symbol] = [...(state.history[symbol] || [basePrice]), nextPrice].slice(-120);
+        }
+        state.dailyChanges = dailyChanges;
+        state.marketDate = marketDate;
+        state.updatedAt = updatedAt;
+      }
+      return { lean: async () => state };
+    },
+  };
+}
+const marketState = createMarketState(storedMarketState);
 const storedOrganizations = [
   {
     _id: "organization-1",
@@ -105,14 +131,18 @@ test("market endpoint returns saved prices and price history", async () => {
   assert.equal(stockB.dailyChange, 0);
 });
 
-test("app serves the home, market, and voting pages", async () => {
+test("daily stock changes include both limits of the five-percent range", () => {
+  assert.equal(randomDailyChange(() => 0), -5);
+  assert.equal(randomDailyChange(() => 1), 5);
+});
+
+test("app serves the home, market, and organizations pages without voting", async () => {
   const page = await fetch(baseUrl);
   const homePage = await fetch(`${baseUrl}/index.html`);
   const marketPage = await fetch(`${baseUrl}/market.html`);
   const script = await fetch(`${baseUrl}/script.js`);
   const homeScript = await fetch(`${baseUrl}/home.js`);
   const votingPage = await fetch(`${baseUrl}/votes.html`);
-  const votingScript = await fetch(`${baseUrl}/votes.js`);
   const organizationsPage = await fetch(`${baseUrl}/organizations.html`);
   const organizationsScript = await fetch(`${baseUrl}/organizations.js`);
   const organizationsApi = await fetch(`${baseUrl}/larpnomics/organizations`);
@@ -134,13 +164,8 @@ test("app serves the home, market, and voting pages", async () => {
   assert.match(marketPageHtml, /id="discord-login"/);
   assert.match(marketPageHtml, /id="logout-button"/);
   assert.equal(script.status, 200);
-  assert.equal(votingPage.status, 200);
-  const votingPageHtml = await votingPage.text();
-  assert.match(votingPageHtml, /Voting/);
-  assert.match(votingPageHtml, /href="\/market\.html"/);
-  assert.match(votingPageHtml, /id="discord-login"/);
-  assert.match(votingPageHtml, /id="logout-button"/);
-  assert.equal(votingScript.status, 200);
+  assert.equal(votingPage.status, 404);
+  assert.doesNotMatch(homePageHtml, /Voting/);
   assert.equal(organizationsPage.status, 200);
   const organizationsPageHtml = await organizationsPage.text();
   assert.match(organizationsPageHtml, /Organizations and their leaders/);
@@ -209,7 +234,6 @@ test("organizations model reads from larponomics.organizations", () => {
 test("Vercel account endpoints export request handlers", () => {
   for (const endpoint of [
     "./api/account",
-    "./api/account/votes",
     "./api/auth/discord",
     "./api/auth/discord/callback",
     "./api/auth/logout",
@@ -250,54 +274,52 @@ test("Vercel Discord sign-in endpoint routes to the account handler", async () =
   }
 });
 
-test("market endpoint returns initial prices when no votes have updated them", async () => {
-  const emptyMarket = { findOne: () => ({ lean: async () => null }) };
-  const app = createApp({
-    marketState: emptyMarket,
-    clock: () => new Date("2026-10-21T00:00:00.000Z"),
-    connect: async () => {},
-  });
-  const emptyServer = app.listen(0);
-  await new Promise((resolve) => emptyServer.once("listening", resolve));
-  try {
-    const response = await fetch(`http://127.0.0.1:${emptyServer.address().port}/api/market`);
-    const result = await response.json();
-
-    assert.equal(response.status, 200);
-    assert.equal(result.stocks.find((stock) => stock.symbol === "A").price, 1800);
-    assert.equal(result.stocks.find((stock) => stock.symbol === "A").dailyChange, 0);
-  } finally {
-    await new Promise((resolve, reject) => {
-      emptyServer.close((error) => error ? reject(error) : resolve());
-    });
-  }
-});
-
-test("market endpoint retains cumulative vote percentages across days", async () => {
-  const state = {
-    cumulativeChanges: { A: 2, B: -2 },
-  };
-  const app = createApp({
-    marketState: { findOne: () => ({ lean: async () => state }) },
-    clock: () => new Date(currentDate),
-    connect: async () => {},
-  });
+test("market prices randomly fluctuate within five percent once each UTC day", async () => {
   let currentDate = "2026-10-21T12:00:00.000Z";
+  let randomCalls = 0;
+  const dailyMarketState = createMarketState();
+  const app = createApp({
+    marketState: dailyMarketState,
+    clock: () => new Date(currentDate),
+    random: () => {
+      const call = randomCalls++;
+      if (call === 0) return 0;
+      if (call === 1) return 0.999;
+      return 0.5;
+    },
+    connect: async () => {},
+  });
   const dailyServer = app.listen(0);
   await new Promise((resolve) => dailyServer.once("listening", resolve));
 
   try {
     const url = `http://127.0.0.1:${dailyServer.address().port}/api/market`;
+    const firstDay = await fetch(url);
+    const firstDayMarket = await firstDay.json();
+    const stockA = firstDayMarket.stocks.find((stock) => stock.symbol === "A");
+    const stockB = firstDayMarket.stocks.find((stock) => stock.symbol === "B");
+    assert.equal(firstDay.status, 200);
+    assert.equal(stockA.price, 1710);
+    assert.equal(stockA.dailyChange, -5);
+    assert.equal(stockB.price, 1259.88);
+    assert.equal(stockB.dailyChange, 4.99);
+    assert.ok(firstDayMarket.stocks.every((stock) =>
+      stock.dailyChange >= -5 && stock.dailyChange <= 5
+    ));
+    assert.equal(randomCalls, STOCKS.length);
+
     const sameDay = await fetch(url);
     const sameDayMarket = await sameDay.json();
-    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 2);
-    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "B").dailyChange, -2);
+    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "A").price, 1710);
+    assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "A").history.length, 2);
+    assert.equal(randomCalls, STOCKS.length);
 
     currentDate = "2026-10-22T12:00:00.000Z";
     const nextDay = await fetch(url);
     const nextDayMarket = await nextDay.json();
-    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 2);
-    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "B").dailyChange, -2);
+    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 0);
+    assert.equal(nextDayMarket.stocks.find((stock) => stock.symbol === "A").history.length, 3);
+    assert.equal(randomCalls, STOCKS.length * 2);
   } finally {
     await new Promise((resolve, reject) => {
       dailyServer.close((error) => error ? reject(error) : resolve());

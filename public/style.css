@@ -370,11 +370,6 @@ button:focus-visible {
   letter-spacing: 0.06em;
 }
 
-.voting-panel {
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
 .home-panel {
   max-width: 760px;
   margin: 0 auto;
@@ -517,112 +512,6 @@ button:focus-visible {
   background: #410202;
   color: #fff;
   font-weight: 700;
-}
-
-.voting-panel h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.vote-instructions {
-  color: var(--muted);
-}
-
-.vote-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin: 18px 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.vote-list {
-  display: grid;
-  gap: 8px;
-}
-
-.vote-stock {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.vote-stock-info,
-.vote-stock-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.vote-stock-info {
-  min-width: 240px;
-  flex: 1;
-}
-
-.vote-control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.vote-control-label {
-  min-width: 42px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.vote-control button,
-#submit-votes {
-  min-width: 32px;
-  min-height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--panel);
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-}
-
-.vote-control.up button:last-child,
-#submit-votes {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: white;
-}
-
-.vote-control.down button:last-child {
-  border-color: var(--red);
-  background: var(--red);
-  color: white;
-}
-
-.vote-control button:disabled,
-#submit-votes:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.vote-submit-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.vote-submit-row p {
-  margin: 0;
-  color: var(--muted);
-}
-
-.vote-submit-row p.error {
-  color: var(--red);
 }
 
 canvas {

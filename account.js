@@ -1,27 +1,17 @@
 const crypto = require("node:crypto");
 const express = require("express");
 const mongoose = require("mongoose");
-const {
-  connectDatabase,
-  getMarketData,
-  MarketState,
-  STOCKS,
-  updateMarketPrices,
-} = require("./market");
+const { connectDatabase } = require("./market");
 
-const VOTES_PER_DIRECTION = 3;
 const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "larponomics_session";
 const OAUTH_STATE_COOKIE = "larponomics_oauth_state";
-const stockSymbols = new Set(STOCKS.map((stock) => stock.symbol));
 
 const accountSchema = new mongoose.Schema(
   {
     discordId: { type: String, required: true, unique: true },
     username: { type: String, required: true },
     avatar: { type: String, default: null },
-    dailyVoteDate: { type: String, default: "" },
-    dailyVotes: { type: mongoose.Schema.Types.Mixed, default: { up: {}, down: {} } },
   },
   { collection: "accounts", timestamps: true },
 );
@@ -38,10 +28,6 @@ const sessionSchema = new mongoose.Schema(
 );
 const AccountSession = mongoose.models.LarponomicsAccountSession ||
   mongoose.model("LarponomicsAccountSession", sessionSchema);
-
-function utcDateString(date) {
-  return date.toISOString().slice(0, 10);
-}
 
 function cookieValue(req, name) {
   const cookies = req.headers.cookie || "";
@@ -72,20 +58,7 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-async function runTransaction(callback) {
-  const session = await mongoose.startSession();
-  try {
-    let result;
-    await session.withTransaction(async () => {
-      result = await callback(session);
-    });
-    return result;
-  } finally {
-    await session.endSession();
-  }
-}
-
-function accountPayload(account, today) {
+function accountPayload(account) {
   return {
     user: {
       id: account.discordId,
@@ -94,33 +67,16 @@ function accountPayload(account, today) {
         ? `https://cdn.discordapp.com/avatars/${account.discordId}/${encodeURIComponent(account.avatar)}.png?size=96`
         : null,
     },
-    daily: {
-      date: today,
-      submitted: account.dailyVoteDate === today,
-    },
   };
-}
-
-function validVoteAllocation(allocation) {
-  if (!allocation || typeof allocation !== "object" || Array.isArray(allocation)) {
-    return false;
-  }
-  const entries = Object.entries(allocation);
-  return entries.every(([symbol, count]) =>
-    stockSymbols.has(symbol) &&
-    count === 1
-  ) && entries.length === VOTES_PER_DIRECTION;
 }
 
 function createAccountRouter({
   AccountModel = Account,
   SessionModel = AccountSession,
-  MarketStateModel = MarketState,
   connect = connectDatabase,
   clock = () => new Date(),
   fetchImpl = globalThis.fetch,
   environment = process.env,
-  transaction = runTransaction,
 } = {}) {
   const router = express.Router();
   const secureCookies = environment.NODE_ENV === "production";
@@ -224,10 +180,7 @@ function createAccountRouter({
       await connect();
       const account = await AccountModel.findOneAndUpdate(
         { discordId: discordUser.id },
-        {
-          $set: { username: discordUser.username, avatar: discordUser.avatar || null },
-          $setOnInsert: { dailyVoteDate: "", dailyVotes: { up: {}, down: {} } },
-        },
+        { $set: { username: discordUser.username, avatar: discordUser.avatar || null } },
         { new: true, upsert: true, runValidators: true },
       );
 
@@ -250,60 +203,10 @@ function createAccountRouter({
       const account = await findAccount(req);
       if (!account) return res.status(401).json({ error: "Sign in to access your account" });
       res.set("Cache-Control", "no-store");
-      res.json(accountPayload(account, utcDateString(clock())));
+      res.json(accountPayload(account));
     } catch (error) {
       console.error("Unable to load account:", error);
       res.status(500).json({ error: "Unable to load account" });
-    }
-  });
-
-  router.post("/api/account/votes", async (req, res) => {
-    try {
-      const account = await findAccount(req);
-      if (!account) return res.status(401).json({ error: "Sign in to vote" });
-
-      const { up, down } = req.body || {};
-      if (
-        !validVoteAllocation(up) ||
-        !validVoteAllocation(down) ||
-        Object.keys(up).some((symbol) => Object.hasOwn(down, symbol))
-      ) {
-        return res.status(400).json({
-          error: "Choose 3 unique stocks for each direction without reusing stocks",
-        });
-      }
-
-      const today = utcDateString(clock());
-      const vote = await transaction(async (session) => {
-        const updatedAccount = await AccountModel.findOneAndUpdate(
-          { _id: account._id, dailyVoteDate: { $ne: today } },
-          { $set: { dailyVoteDate: today, dailyVotes: { up, down } } },
-          { new: true, session },
-        ).lean();
-
-        if (!updatedAccount) return null;
-        await updateMarketPrices(
-          MarketStateModel,
-          up,
-          down,
-          { session },
-        );
-        return updatedAccount;
-      });
-
-      if (!vote) {
-        return res.status(409).json({ error: "You have already voted today." });
-      }
-
-      res.set("Cache-Control", "no-store");
-      res.json({
-        ...accountPayload(vote, today),
-        market: await getMarketData(MarketStateModel, today),
-        marketUpdated: true,
-      });
-    } catch (error) {
-      console.error("Unable to submit stock votes:", error);
-      res.status(500).json({ error: "Unable to submit votes" });
     }
   });
 
@@ -328,7 +231,5 @@ function createAccountRouter({
 module.exports = {
   accountPayload,
   createAccountRouter,
-  validVoteAllocation,
-  VOTES_PER_DIRECTION,
   Account,
 };

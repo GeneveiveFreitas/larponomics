@@ -50,7 +50,8 @@ const marketStateSchema = new mongoose.Schema(
     key: { type: String, required: true, unique: true },
     prices: { type: mongoose.Schema.Types.Mixed, required: true },
     history: { type: mongoose.Schema.Types.Mixed, required: true },
-    cumulativeChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
+    dailyChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
+    marketDate: { type: String, default: "" },
     updatedAt: { type: Date, default: Date.now },
   },
   { collection: "market_state", versionKey: false },
@@ -100,8 +101,7 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
       const previousPrice = history.length > 1
         ? history[history.length - 2]
         : price;
-      const dailyChange = state?.cumulativeChanges?.[stock.symbol] ??
-        state?.dailyChanges?.[stock.symbol] ??
+      const dailyChange = state?.dailyChanges?.[stock.symbol] ??
         (price / previousPrice - 1) * 100;
 
       return {
@@ -116,21 +116,40 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
   };
 }
 
-async function updateMarketPrices(
-  marketState,
-  upVotes,
-  downVotes,
-  { session } = {},
-) {
+function randomDailyChange(random = Math.random) {
+  return Math.max(-5, Math.min(5, Math.floor(random() * 1001) / 100 - 5));
+}
+
+async function advanceMarketDay(marketState, today, { random = Math.random, now = new Date() } = {}) {
   const initial = initialMarketValues();
+  const existing = await marketState.findOne({ key: MARKET_STATE_KEY }).lean();
+  if (existing?.marketDate === today) return existing;
+
+  if (!existing) {
+    try {
+      await marketState.findOneAndUpdate(
+        { key: MARKET_STATE_KEY },
+        {
+          $setOnInsert: {
+            key: MARKET_STATE_KEY,
+            prices: initial.prices,
+            history: initial.history,
+            dailyChanges: {},
+            marketDate: "",
+          },
+        },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      ).lean();
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+
+  const dailyChanges = {};
   const priceUpdates = {};
   const historyUpdates = {};
-  const cumulativeChangeUpdates = {};
-
   for (const stock of STOCKS) {
-    const multiplier =
-      Math.pow(1.01, upVotes[stock.symbol] || 0) *
-      Math.pow(0.99, downVotes[stock.symbol] || 0);
+    const change = randomDailyChange(random);
     const nextPrice = {
       $max: [
         1,
@@ -138,12 +157,13 @@ async function updateMarketPrices(
           $round: [{
             $multiply: [
               { $ifNull: [`$prices.${stock.symbol}`, stock.initial] },
-              multiplier,
+              1 + change / 100,
             ],
           }, 2],
         },
       ],
     };
+    dailyChanges[stock.symbol] = change;
     priceUpdates[stock.symbol] = nextPrice;
     historyUpdates[stock.symbol] = {
       $slice: [
@@ -156,44 +176,20 @@ async function updateMarketPrices(
         -HISTORY_LIMIT,
       ],
     };
-    cumulativeChangeUpdates[stock.symbol] = {
-      $add: [
-        {
-          $ifNull: [
-            `$cumulativeChanges.${stock.symbol}`,
-            { $ifNull: [`$dailyChanges.${stock.symbol}`, 0] },
-          ],
-        },
-        (upVotes[stock.symbol] || 0) - (downVotes[stock.symbol] || 0),
-      ],
-    };
   }
 
-  const initializedValues = initialMarketValues();
-  return marketState.findOneAndUpdate(
-    { key: MARKET_STATE_KEY },
-    [
-      {
-        $set: {
-          key: { $ifNull: ["$key", MARKET_STATE_KEY] },
-          prices: {
-            $mergeObjects: [initializedValues.prices, { $ifNull: ["$prices", {}] }],
-          },
-          history: {
-            $mergeObjects: [initializedValues.history, { $ifNull: ["$history", {}] }],
-          },
-        },
+  await marketState.findOneAndUpdate(
+    { key: MARKET_STATE_KEY, marketDate: { $ne: today } },
+    [{
+      $set: {
+        prices: priceUpdates,
+        history: historyUpdates,
+        dailyChanges,
+        marketDate: today,
+        updatedAt: now,
       },
-      {
-        $set: {
-          prices: priceUpdates,
-          history: historyUpdates,
-          cumulativeChanges: cumulativeChangeUpdates,
-          updatedAt: new Date(),
-        },
-      },
-    ],
-    { new: true, upsert: true, updatePipeline: true, ...(session ? { session } : {}) },
+    }],
+    { new: true, updatePipeline: true },
   ).lean();
 }
 
@@ -201,6 +197,7 @@ function createMarketHandler({
   marketState = MarketState,
   clock = () => new Date(),
   connect = connectDatabase,
+  random = Math.random,
 } = {}) {
   return async function marketHandler(req, res) {
     if (req.method !== "GET") {
@@ -213,6 +210,7 @@ function createMarketHandler({
     try {
       const today = utcDateString(clock());
       await connect();
+      await advanceMarketDay(marketState, today, { random, now: clock() });
       const data = await getMarketData(marketState, today);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -231,7 +229,8 @@ module.exports = {
   createMarketHandler,
   connectDatabase,
   getMarketData,
-  updateMarketPrices,
+  advanceMarketDay,
+  randomDailyChange,
   MarketState,
   STOCKS,
   utcDateString,
