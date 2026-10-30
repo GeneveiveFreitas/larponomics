@@ -191,7 +191,7 @@ async function loadMarket() {
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch("/larponomics/market_state", {
+    const response = await fetch("/api/market", {
       cache: "no-store",
       signal: controller.signal,
     });
