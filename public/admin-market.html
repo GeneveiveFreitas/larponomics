@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Market settings · Kethercraft Stock Market</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="header-top">
+        <nav class="site-nav" aria-label="Main navigation">
+          <a href="/index.html">Home</a>
+          <details class="site-nav-dropdown">
+            <summary class="site-nav-trigger active">Market</summary>
+            <div class="site-nav-menu">
+              <a href="/market.html">Market</a>
+            </div>
+          </details>
+          <a class="admin-market-link active" href="/admin-market.html" aria-current="page" hidden>Market settings</a>
+          <a href="/organizations.html">Organizations</a>
+        </nav>
+        <div class="account-bar">
+          <a id="discord-login" class="account-button" href="/api/auth/discord">Sign in with Discord</a>
+          <div id="account-user" hidden>
+            <img id="account-avatar" alt="" hidden>
+            <span id="account-username"></span>
+            <button id="logout-button" type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
+      <h1>Market settings</h1>
+    </header>
+    <main class="block market-settings-panel">
+      <p class="market-message" id="settings-message" role="status" aria-live="polite"></p>
+      <section id="settings-content" hidden>
+        <p>Update a stock price to add it to the price history. Creating an event immediately applies its percentage changes; active events stay in the market banner until ended. Ending an event does not reverse its price changes. Reset restores initial prices and clears price history and events.</p>
+        <section class="event-management" aria-labelledby="events-heading">
+          <h2 id="events-heading">Market events</h2>
+          <details class="event-editor">
+            <summary>Create event</summary>
+            <form id="event-form">
+              <label class="event-title-field">
+                Event title
+                <input id="event-title" name="title" type="text" maxlength="120" required>
+              </label>
+              <p>Choose the direction and percentage change for each stock affected by this event.</p>
+              <div id="event-stock-list" class="event-stock-list"></div>
+              <button id="create-event" type="submit">Create event and update prices</button>
+            </form>
+          </details>
+          <div id="active-events" class="active-events" aria-live="polite"></div>
+        </section>
+        <div class="market-settings-list" id="settings-list"></div>
+        <div class="settings-actions">
+          <button id="reset-market" type="button">Reset market, history, and events</button>
+        </div>
+      </section>
+    </main>
+  </div>
+<script src="admin-market.js" defer></script>
+</body>
+</html>

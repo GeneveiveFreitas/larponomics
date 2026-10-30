@@ -3,16 +3,22 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   connectDatabase,
+  createMarketEvent,
   getMarketData,
   MarketState,
   STOCKS,
-  updateMarketPrices,
+  removeMarketEvent,
+  setMarketPrice,
+  resetMarket,
 } = require("./market");
 
-const VOTES_PER_DIRECTION = 3;
 const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "larponomics_session";
 const OAUTH_STATE_COOKIE = "larponomics_oauth_state";
+const ADMIN_DISCORD_IDS = new Set([
+  "166644936047853568",
+  "294557281863860224",
+]);
 const stockSymbols = new Set(STOCKS.map((stock) => stock.symbol));
 
 const accountSchema = new mongoose.Schema(
@@ -20,8 +26,6 @@ const accountSchema = new mongoose.Schema(
     discordId: { type: String, required: true, unique: true },
     username: { type: String, required: true },
     avatar: { type: String, default: null },
-    dailyVoteDate: { type: String, default: "" },
-    dailyVotes: { type: mongoose.Schema.Types.Mixed, default: { up: {}, down: {} } },
   },
   { collection: "accounts", timestamps: true },
 );
@@ -72,20 +76,7 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-async function runTransaction(callback) {
-  const session = await mongoose.startSession();
-  try {
-    let result;
-    await session.withTransaction(async () => {
-      result = await callback(session);
-    });
-    return result;
-  } finally {
-    await session.endSession();
-  }
-}
-
-function accountPayload(account, today) {
+function accountPayload(account, isAdmin = false) {
   return {
     user: {
       id: account.discordId,
@@ -94,22 +85,8 @@ function accountPayload(account, today) {
         ? `https://cdn.discordapp.com/avatars/${account.discordId}/${encodeURIComponent(account.avatar)}.png?size=96`
         : null,
     },
-    daily: {
-      date: today,
-      submitted: account.dailyVoteDate === today,
-    },
+    isAdmin,
   };
-}
-
-function validVoteAllocation(allocation) {
-  if (!allocation || typeof allocation !== "object" || Array.isArray(allocation)) {
-    return false;
-  }
-  const entries = Object.entries(allocation);
-  return entries.every(([symbol, count]) =>
-    stockSymbols.has(symbol) &&
-    count === 1
-  ) && entries.length === VOTES_PER_DIRECTION;
 }
 
 function createAccountRouter({
@@ -120,7 +97,6 @@ function createAccountRouter({
   clock = () => new Date(),
   fetchImpl = globalThis.fetch,
   environment = process.env,
-  transaction = runTransaction,
 } = {}) {
   const router = express.Router();
   const secureCookies = environment.NODE_ENV === "production";
@@ -149,6 +125,19 @@ function createAccountRouter({
     return AccountModel.findById(session.accountId).lean();
   }
 
+  async function requireMarketAdmin(req, res) {
+    const account = await findAccount(req);
+    if (!account) {
+      res.status(401).json({ error: "Sign in to access market settings" });
+      return null;
+    }
+    if (!ADMIN_DISCORD_IDS.has(account.discordId)) {
+      res.status(403).json({ error: "Market admin access required" });
+      return null;
+    }
+    return account;
+  }
+
   function sendUnavailable(res) {
     res.status(503).json({ error: "Discord sign-in is not configured" });
   }
@@ -170,7 +159,7 @@ function createAccountRouter({
     res.redirect(authorizeUrl.toString());
   });
 
-  router.get("/api/auth/discord/callback", async (req, res) => {
+  router.get("/larponomics/auth/discord/callback", async (req, res) => {
     const config = discordConfig();
     clearCookie(res, OAUTH_STATE_COOKIE, secureCookies);
     if (!config) return sendUnavailable(res);
@@ -226,7 +215,6 @@ function createAccountRouter({
         { discordId: discordUser.id },
         {
           $set: { username: discordUser.username, avatar: discordUser.avatar || null },
-          $setOnInsert: { dailyVoteDate: "", dailyVotes: { up: {}, down: {} } },
         },
         { new: true, upsert: true, runValidators: true },
       );
@@ -245,69 +233,137 @@ function createAccountRouter({
     }
   });
 
-  router.get("/api/account", async (req, res) => {
+  router.get("/larponomics/account", async (req, res) => {
     try {
       const account = await findAccount(req);
       if (!account) return res.status(401).json({ error: "Sign in to access your account" });
       res.set("Cache-Control", "no-store");
-      res.json(accountPayload(account, utcDateString(clock())));
+      res.json(accountPayload(account, ADMIN_DISCORD_IDS.has(account.discordId)));
     } catch (error) {
       console.error("Unable to load account:", error);
       res.status(500).json({ error: "Unable to load account" });
     }
   });
 
-  router.post("/api/account/votes", async (req, res) => {
+  router.get("/larponomics/admin/market", async (req, res) => {
     try {
-      const account = await findAccount(req);
-      if (!account) return res.status(401).json({ error: "Sign in to vote" });
-
-      const { up, down } = req.body || {};
-      if (
-        !validVoteAllocation(up) ||
-        !validVoteAllocation(down) ||
-        Object.keys(up).some((symbol) => Object.hasOwn(down, symbol))
-      ) {
-        return res.status(400).json({
-          error: "Choose 3 unique stocks for each direction without reusing stocks",
-        });
-      }
-
-      const today = utcDateString(clock());
-      const vote = await transaction(async (session) => {
-        const updatedAccount = await AccountModel.findOneAndUpdate(
-          { _id: account._id, dailyVoteDate: { $ne: today } },
-          { $set: { dailyVoteDate: today, dailyVotes: { up, down } } },
-          { new: true, session },
-        ).lean();
-
-        if (!updatedAccount) return null;
-        await updateMarketPrices(
-          MarketStateModel,
-          up,
-          down,
-          { session },
-        );
-        return updatedAccount;
-      });
-
-      if (!vote) {
-        return res.status(409).json({ error: "You have already voted today." });
-      }
-
+      if (!await requireMarketAdmin(req, res)) return;
       res.set("Cache-Control", "no-store");
-      res.json({
-        ...accountPayload(vote, today),
-        market: await getMarketData(MarketStateModel, today),
-        marketUpdated: true,
-      });
+      res.json(await getMarketData(MarketStateModel, utcDateString(clock())));
     } catch (error) {
-      console.error("Unable to submit stock votes:", error);
-      res.status(500).json({ error: "Unable to submit votes" });
+      console.error("Unable to load market settings:", error);
+      res.status(500).json({ error: "Unable to load market settings" });
     }
   });
 
-  router.post("/api/auth/logout", async (req, res) => {
+  router.put("/larponomics/admin/market", async (req, res) => {
+    try {
+      if (!await requireMarketAdmin(req, res)) return;
+      const { symbol, price } = req.body || {};
+      if (
+        typeof symbol !== "string" ||
+        !stockSymbols.has(symbol) ||
+        typeof price !== "number" ||
+        !Number.isFinite(price) ||
+        price < 1
+      ) {
+        return res.status(400).json({ error: "Provide a valid stock symbol and a price of at least 1" });
+      }
+
+      await setMarketPrice(MarketStateModel, symbol, price);
+      res.set("Cache-Control", "no-store");
+      res.json(await getMarketData(MarketStateModel, utcDateString(clock())));
+    } catch (error) {
+      console.error("Unable to update market price:", error);
+      res.status(500).json({ error: "Unable to update market price" });
+    }
+  });
+
+  router.post("/larponomics/admin/market", async (req, res) => {
+    try {
+      if (!await requireMarketAdmin(req, res)) return;
+      await resetMarket(MarketStateModel);
+      res.set("Cache-Control", "no-store");
+      res.json(await getMarketData(MarketStateModel, utcDateString(clock())));
+    } catch (error) {
+      console.error("Unable to reset market:", error);
+      res.status(500).json({ error: "Unable to reset market" });
+    }
+  });
+
+  router.post("/larponomics/admin/events", async (req, res) => {
+    try {
+      if (!await requireMarketAdmin(req, res)) return;
+      const { title, impacts } = req.body || {};
+      if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        title.trim().length > 120 ||
+        !Array.isArray(impacts) ||
+        impacts.length === 0 ||
+        impacts.length > STOCKS.length
+      ) {
+        return res.status(400).json({
+          error: "Provide an event title (up to 120 characters) and at least one stock impact",
+        });
+      }
+
+      const symbols = new Set();
+      for (const impact of impacts) {
+        if (
+          !impact ||
+          typeof impact.symbol !== "string" ||
+          !stockSymbols.has(impact.symbol) ||
+          symbols.has(impact.symbol) ||
+          !["increase", "decrease"].includes(impact.direction) ||
+          typeof impact.percentage !== "number" ||
+          !Number.isFinite(impact.percentage) ||
+          impact.percentage < 0.01 ||
+          impact.percentage > 100
+        ) {
+          return res.status(400).json({
+            error: "Each stock must have a unique valid symbol, direction, and percentage from 0.01 to 100",
+          });
+        }
+        symbols.add(impact.symbol);
+      }
+
+      const event = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        impacts: impacts.map(({ symbol, direction, percentage }) => ({
+          symbol,
+          direction,
+          percentage,
+        })),
+        createdAt: clock(),
+      };
+      await createMarketEvent(MarketStateModel, event);
+      res.set("Cache-Control", "no-store");
+      res.status(201).json(await getMarketData(MarketStateModel, utcDateString(clock())));
+    } catch (error) {
+      console.error("Unable to create market event:", error);
+      res.status(500).json({ error: "Unable to create market event" });
+    }
+  });
+
+  router.delete("/larponomics/admin/events/:eventId", async (req, res) => {
+    try {
+      if (!await requireMarketAdmin(req, res)) return;
+      const market = await getMarketData(MarketStateModel, utcDateString(clock()));
+      if (!market.events.some((event) => event.id === req.params.eventId)) {
+        return res.status(404).json({ error: "Market event not found" });
+      }
+      await removeMarketEvent(MarketStateModel, req.params.eventId);
+      res.set("Cache-Control", "no-store");
+      res.json(await getMarketData(MarketStateModel, utcDateString(clock())));
+    } catch (error) {
+      console.error("Unable to remove market event:", error);
+      res.status(500).json({ error: "Unable to remove market event" });
+    }
+  });
+
+  router.post("/larponomics/auth/logout", async (req, res) => {
     try {
       const token = cookieValue(req, SESSION_COOKIE);
       if (token) {
@@ -328,7 +384,5 @@ function createAccountRouter({
 module.exports = {
   accountPayload,
   createAccountRouter,
-  validVoteAllocation,
-  VOTES_PER_DIRECTION,
   Account,
 };
