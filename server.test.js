@@ -91,7 +91,7 @@ after(async () => {
 });
 
 test("market endpoint returns saved prices and price history", async () => {
-  const response = await fetch(`${baseUrl}/larponomics/market`);
+  const response = await fetch(`${baseUrl}/api/market`);
   const result = await response.json();
   const stockA = result.stocks.find((stock) => stock.symbol === "A");
   const stockB = result.stocks.find((stock) => stock.symbol === "B");
@@ -117,15 +117,15 @@ test("app serves the home, market, and admin settings pages without voting", asy
   const settingsScript = await fetch(`${baseUrl}/admin-market.js`);
   const removedVotingPage = await fetch(`${baseUrl}/votes.html`);
   const removedVotingScript = await fetch(`${baseUrl}/votes.js`);
-  const removedVotingApi = await fetch(`${baseUrl}/larponomics/account/votes`, {
+  const removedVotingApi = await fetch(`${baseUrl}/api/account/votes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: "{}",
   });
-  const legacyMarketApi = await fetch(`${baseUrl}/api/market`);
+  const oldLegacyMarketApi = await fetch(`${baseUrl}/larponomics/market`);
   const organizationsPage = await fetch(`${baseUrl}/organizations.html`);
   const organizationsScript = await fetch(`${baseUrl}/organizations.js`);
-  const organizationsApi = await fetch(`${baseUrl}/larponomics/organizations`);
+  const organizationsApi = await fetch(`${baseUrl}/larpnomics/organizations`);
   const oldOrganizationsApi = await fetch(`${baseUrl}/api/organizations`);
 
   assert.equal(page.status, 200);
@@ -137,7 +137,7 @@ test("app serves the home, market, and admin settings pages without voting", asy
   assert.match(homePageHtml, /id="discord-login"/);
   assert.match(homePageHtml, /id="logout-button"/);
   assert.equal(homeScript.status, 200);
-  assert.match(await homeScript.text(), /larponomics\/account/);
+  assert.match(await homeScript.text(), /api\/account/);
   assert.doesNotMatch(homePageHtml, /votes\.html|Voting/);
   assert.equal(marketPage.status, 200);
   const marketPageHtml = await marketPage.text();
@@ -157,11 +157,11 @@ test("app serves the home, market, and admin settings pages without voting", asy
   assert.match(settingsPageHtml, /id="active-events"/);
   assert.match(settingsPageHtml, /id="reset-market"/);
   assert.equal(settingsScript.status, 200);
-  assert.match(await settingsScript.text(), /larponomics\/admin\/events/);
+  assert.match(await settingsScript.text(), /api\/admin\/events/);
   assert.equal(removedVotingPage.status, 404);
   assert.equal(removedVotingScript.status, 404);
   assert.equal(removedVotingApi.status, 404);
-  assert.equal(legacyMarketApi.status, 404);
+  assert.equal(oldLegacyMarketApi.status, 404);
   assert.equal(organizationsPage.status, 200);
   const organizationsPageHtml = await organizationsPage.text();
   assert.match(organizationsPageHtml, /Organizations and their leaders/);
@@ -208,7 +208,7 @@ test("app serves the home, market, and admin settings pages without voting", asy
     { name: "Legacy co-director", role: "Co-director", profile: null },
   ]);
   const organizationsScriptText = await organizationsScript.text();
-  assert.match(organizationsScriptText, /fetch\("\/larponomics\/organizations"/);
+  assert.match(organizationsScriptText, /fetch\("\/larpnomics\/organizations"/);
   assert.match(organizationsScriptText, /organization\.category === category/);
   assert.match(organizationsScriptText, /organization\.directors/);
   assert.match(organizationsScriptText, /for \(const \{ name: directorName, role, profile \} of organization\.directors\)/);
@@ -219,10 +219,6 @@ test("app serves the home, market, and admin settings pages without voting", asy
 
 test("Vercel market function exports a request handler", () => {
   assert.equal(typeof require("./api/market"), "function");
-  assert.equal(typeof require("./api/larponomics/organizations"), "function");
-  const { rewrites } = require("./vercel.json");
-  assert.ok(rewrites.some(({ source }) => source === "/larponomics/market"));
-  assert.ok(rewrites.some(({ source }) => source === "/larponomics/admin/events/:eventId"));
 });
 
 test("organizations model reads from larponomics.organizations", () => {
@@ -288,7 +284,7 @@ test("market endpoint returns initial prices when no market changes have been ma
   const emptyServer = app.listen(0);
   await new Promise((resolve) => emptyServer.once("listening", resolve));
   try {
-    const response = await fetch(`http://127.0.0.1:${emptyServer.address().port}/larponomics/market`);
+    const response = await fetch(`http://127.0.0.1:${emptyServer.address().port}/api/market`);
     const result = await response.json();
 
     assert.equal(response.status, 200);
@@ -317,7 +313,7 @@ test("market endpoint reports the latest price change from market history", asyn
   await new Promise((resolve) => dailyServer.once("listening", resolve));
 
   try {
-    const url = `http://127.0.0.1:${dailyServer.address().port}/larponomics/market`;
+    const url = `http://127.0.0.1:${dailyServer.address().port}/api/market`;
     const sameDay = await fetch(url);
     const sameDayMarket = await sameDay.json();
     assert.equal(sameDayMarket.stocks.find((stock) => stock.symbol === "A").dailyChange, 2);

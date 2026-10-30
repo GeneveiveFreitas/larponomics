@@ -14,8 +14,8 @@ function createApp(options) {
   app.disable("x-powered-by");
   app.use(express.json({ limit: "4kb" }));
   app.use(createAccountRouter(options?.accountOptions));
-  app.get("/larponomics/market", createMarketHandler(options));
-  app.get("/larponomics/organizations", createOrganizationsHandler(options?.organizationOptions));
+  app.get("/api/market", createMarketHandler(options));
+  app.get("/larpnomics/organizations", createOrganizationsHandler(options?.organizationOptions));
   app.use(express.static(publicDirectory));
   app.use((req, res) => {
     res.status(404).json({ error: "Not found" });
