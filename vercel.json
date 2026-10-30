@@ -1,6 +1,15 @@
 {
   "rewrites": [
-    { "source": "/admin", "destination": "/api/admin/page" },
-    { "source": "/admin.html", "destination": "/api/admin/page" }
+    { "source": "/admin", "destination": "/api/admin?route=page" },
+    { "source": "/admin.html", "destination": "/api/admin?route=page" },
+    { "source": "/api/admin/market", "destination": "/api/admin?route=market" },
+    { "source": "/api/admin/market/range", "destination": "/api/admin?route=market/range" },
+    { "source": "/api/admin/market/prices", "destination": "/api/admin?route=market/prices" },
+    { "source": "/api/admin/market/reset", "destination": "/api/admin?route=market/reset" },
+    { "source": "/api/admin/organizations", "destination": "/api/admin?route=organizations" },
+    {
+      "source": "/api/admin/organizations/:id",
+      "destination": "/api/admin?route=organizations/:id"
+    }
   ]
 }

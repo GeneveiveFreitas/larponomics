@@ -116,16 +116,23 @@ test("admin page and APIs require the configured Discord account", async () => {
   assert.deepEqual((await savedSettings.json()).range, { min: -2.5, max: 3 });
 });
 
-test("admin API entry points are exported for deployment functions", () => {
-  for (const endpoint of [
-    "./api/admin/page",
-    "./api/admin/market",
-    "./api/admin/market/range",
-    "./api/admin/market/prices",
-    "./api/admin/market/reset",
-    "./api/admin/organizations",
-    "./api/admin/organizations/[id]",
-  ]) {
-    assert.equal(typeof require(endpoint), "function");
+test("admin deployment uses one serverless function for all settings routes", () => {
+  assert.equal(typeof require("./api/admin"), "function");
+});
+
+test("the shared admin function dispatches rewritten route queries", async () => {
+  const app = require("./admin-app");
+  const sharedServer = app.listen(0);
+  await new Promise((resolve) => sharedServer.once("listening", resolve));
+  try {
+    const sharedUrl = `http://127.0.0.1:${sharedServer.address().port}/api/admin`;
+    for (const route of ["page", "market", "market/range", "market/prices", "market/reset", "organizations"]) {
+      const response = await fetch(`${sharedUrl}?route=${route}`);
+      assert.equal(response.status, 401, `${route} should reach protected admin routing`);
+    }
+  } finally {
+    await new Promise((resolve, reject) => {
+      sharedServer.close((error) => error ? reject(error) : resolve());
+    });
   }
 });
