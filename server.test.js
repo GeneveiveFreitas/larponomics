@@ -10,6 +10,15 @@ const storedMarketState = {
     B: [1200, 1200, 1200],
   },
   dailyChanges: { A: 1, B: 0 },
+  events: [{
+    title: "Festival boom",
+    description: "Demand increased.",
+    stockSymbol: "A",
+    stockName: "A Corp",
+    direction: "increase",
+    amount: 10,
+    createdAt: "2026-10-21T00:00:00.000Z",
+  }],
   marketDate: "2026-10-21",
 };
 const initialPrices = Object.fromEntries(STOCKS.map(({ symbol, initial }) => [symbol, initial]));
@@ -125,6 +134,7 @@ test("market endpoint returns saved prices and price history", async () => {
   assert.equal(result.date, "2026-10-21");
   assert.ok(Math.abs(stockA.price - 1854.36) < 1e-9);
   assert.equal(stockB.price, 1200);
+  assert.equal(result.events[0].title, "Festival boom");
   assert.equal(stockA.history.length, 3);
   assert.equal(stockA.history.at(-2), 1836);
   assert.ok(Math.abs(stockA.dailyChange - 1) < 1e-9);
@@ -178,6 +188,7 @@ test("app serves the home, market, and organizations pages without voting", asyn
   const votingPage = await fetch(`${baseUrl}/votes.html`);
   const organizationsPage = await fetch(`${baseUrl}/organizations.html`);
   const organizationsScript = await fetch(`${baseUrl}/organizations.js`);
+  const adminScript = await fetch(`${baseUrl}/admin.js`);
   const organizationsApi = await fetch(`${baseUrl}/larpnomics/organizations`);
   const oldOrganizationsApi = await fetch(`${baseUrl}/api/organizations`);
 
@@ -196,7 +207,12 @@ test("app serves the home, market, and organizations pages without voting", asyn
   assert.match(marketPageHtml, /id="list"/);
   assert.match(marketPageHtml, /id="discord-login"/);
   assert.match(marketPageHtml, /id="logout-button"/);
+  assert.ok(marketPageHtml.indexOf('id="market-events-heading"') < marketPageHtml.indexOf('class="layout"'));
   assert.equal(script.status, 200);
+  assert.equal(adminScript.status, 200);
+  const marketScript = await script.text();
+  assert.match(marketScript, /renderMarketEvents\(result\.events\)/);
+  assert.match(marketPageHtml, /id="market-events-list"/);
   assert.equal(votingPage.status, 404);
   assert.doesNotMatch(homePageHtml, /Voting/);
   assert.equal(organizationsPage.status, 200);

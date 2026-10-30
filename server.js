@@ -21,6 +21,7 @@ function createApp(options) {
     marketState: options?.marketState,
     connect: options?.connect,
     clock: options?.clock,
+    random: options?.random,
   }));
   app.get(["/admin", "/admin/", "/admin.html"], createAdminMiddleware(options?.accountOptions), (req, res, next) => {
     res.sendFile(path.join(__dirname, "admin.html"), (error) => {

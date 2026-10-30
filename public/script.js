@@ -160,6 +160,55 @@ function render() {
   drawChart();
 }
 
+function renderMarketEvents(events) {
+  const list = $("market-events-list");
+  const message = $("events-message");
+  const recentEvents = Array.isArray(events) ? events : [];
+  message.textContent = recentEvents.length ? "" : "No market events yet.";
+  const signature = JSON.stringify(recentEvents);
+  if (list.dataset.eventSignature === signature) return;
+  list.dataset.eventSignature = signature;
+  list.replaceChildren();
+  if (!recentEvents.length) return;
+
+  const track = document.createElement("div");
+  track.className = "market-event-track";
+  const group = document.createElement("div");
+  group.className = "market-event-group";
+  for (const event of recentEvents) {
+    const item = document.createElement("article");
+    item.className = "market-event-card";
+    const header = document.createElement("div");
+    header.className = "market-event-header";
+    const title = document.createElement("h3");
+    title.textContent = event.title;
+    const time = document.createElement("time");
+    time.className = "market-event-time";
+    const createdAt = new Date(event.createdAt);
+    if (!Number.isNaN(createdAt.getTime())) {
+      time.dateTime = createdAt.toISOString();
+      time.textContent = createdAt.toLocaleString();
+    }
+    header.append(title);
+
+    const stock = document.createElement("p");
+    stock.className = "market-event-stock";
+    stock.textContent =
+      `${event.stockSymbol} — ${event.stockName}: ` +
+      `${event.direction === "increase" ? "+" : "-"}${Number(event.amount).toFixed(2)}%`;
+    const description = document.createElement("p");
+    description.textContent = event.description;
+    item.append(header, stock, description);
+    if (time.textContent) item.appendChild(time);
+    group.appendChild(item);
+  }
+
+  const duplicateGroup = group.cloneNode(true);
+  duplicateGroup.setAttribute("aria-hidden", "true");
+  track.append(group, duplicateGroup);
+  list.appendChild(track);
+}
+
 async function loadMarket() {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
@@ -176,6 +225,7 @@ async function loadMarket() {
     if (!Array.isArray(result.stocks) || result.stocks.length === 0) {
       throw new Error("Market API returned no stock data");
     }
+    renderMarketEvents(result.events);
 
     const selectedSymbol = items[selectedIndex]?.symbol;
     items = result.stocks.map((stock) => ({

@@ -3,6 +3,7 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 
 const HISTORY_LIMIT = 120;
+const MARKET_EVENT_LIMIT = 50;
 const STOCKS = [
   { symbol: "A", name: "A Corp", initial: 1800 },
   { symbol: "B", name: "B Corp", initial: 1200 },
@@ -50,6 +51,7 @@ const marketStateSchema = new mongoose.Schema(
     key: { type: String, required: true, unique: true },
     prices: { type: mongoose.Schema.Types.Mixed, required: true },
     history: { type: mongoose.Schema.Types.Mixed, required: true },
+    events: { type: [mongoose.Schema.Types.Mixed], default: [] },
     dailyChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
     dailyChangeMin: { type: Number, default: -5 },
     dailyChangeMax: { type: Number, default: 5 },
@@ -115,6 +117,7 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
         history: history.slice(-HISTORY_LIMIT),
       };
     }),
+    events: (state?.events || []).slice(-20).reverse(),
   };
 }
 
@@ -239,6 +242,7 @@ module.exports = {
   initialMarketValues,
   advanceMarketDay,
   randomDailyChange,
+  MARKET_EVENT_LIMIT,
   MarketState,
   STOCKS,
   utcDateString,

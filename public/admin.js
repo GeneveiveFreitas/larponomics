@@ -1,7 +1,9 @@
 const adminMessage = document.getElementById("admin-message");
 const rangeForm = document.getElementById("range-form");
 const priceForm = document.getElementById("price-form");
+const eventForm = document.getElementById("event-form");
 const priceSymbol = document.getElementById("price-symbol");
+const eventSymbol = document.getElementById("event-symbol");
 const organizationSelect = document.getElementById("organization-select");
 const organizationForm = document.getElementById("organization-form");
 const deleteOrganizationButton = document.getElementById("delete-organization");
@@ -79,12 +81,40 @@ async function loadMarketSettings() {
   priceSymbol.replaceChildren(...stocks.map((stock) =>
     new Option(`${stock.symbol} — ${stock.name}`, stock.symbol)
   ));
+  const selectedEventSymbol = eventSymbol.value;
+  eventSymbol.replaceChildren(...stocks.map((stock) =>
+    new Option(`${stock.symbol} — ${stock.name}`, stock.symbol)
+  ));
+  if (stocks.some(({ symbol }) => symbol === selectedEventSymbol)) {
+    eventSymbol.value = selectedEventSymbol;
+  }
   if (stocks.length) {
     const selectedStock = stocks.find(({ symbol }) => symbol === selectedSymbol) || stocks[0];
     priceSymbol.value = selectedStock.symbol;
     document.getElementById("price-value").value = selectedStock.price;
   }
 }
+
+eventForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await requestJson("/api/admin/events", {
+      method: "POST",
+      body: JSON.stringify({
+        title: document.getElementById("event-title").value,
+        description: document.getElementById("event-description").value,
+        stockSymbol: eventSymbol.value,
+        direction: document.getElementById("event-direction").value,
+        amount: Number(document.getElementById("event-amount").value),
+      }),
+    });
+    eventForm.reset();
+    showMessage("Event created, stock price adjusted, and event published on the market page.");
+    await loadMarketSettings();
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+});
 
 priceSymbol.addEventListener("change", () => {
   const stock = stocks.find(({ symbol }) => symbol === priceSymbol.value);

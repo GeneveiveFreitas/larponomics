@@ -2,17 +2,20 @@ const express = require("express");
 const mongoose = require("mongoose");
 const {
   connectDatabase,
+  advanceMarketDay,
   getMarketData,
   initialMarketValues,
   MarketState,
   STOCKS,
   utcDateString,
+  MARKET_EVENT_LIMIT,
 } = require("./market");
 const { createAdminMiddleware } = require("./account");
 const { Organization, ORGANIZATION_CATEGORIES } = require("./organizations");
 
 const HISTORY_LIMIT = 120;
 const INITIAL_PRICES = Object.fromEntries(STOCKS.map(({ symbol, initial }) => [symbol, initial]));
+const STOCKS_BY_SYMBOL = new Map(STOCKS.map((stock) => [stock.symbol, stock]));
 
 function isMoney(value) {
   return typeof value === "number" &&
@@ -84,12 +87,39 @@ function historyExpression(symbol, appendPrice) {
   };
 }
 
+function parseMarketEvent(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const stockSymbol = body.stockSymbol;
+  const direction = body.direction;
+  const amount = body.amount;
+  if (
+    !title || title.length > 100 ||
+    !description || description.length > 1000 ||
+    !STOCKS_BY_SYMBOL.has(stockSymbol) ||
+    !["increase", "decrease"].includes(direction) ||
+    typeof amount !== "number" || !Number.isFinite(amount) ||
+    amount <= 0 || amount > 100 ||
+    Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8
+  ) return null;
+  return {
+    title,
+    description,
+    stockSymbol,
+    stockName: STOCKS_BY_SYMBOL.get(stockSymbol).name,
+    direction,
+    amount,
+  };
+}
+
 function createAdminRouter({
   accountOptions,
   marketState = MarketState,
   organizationModel = Organization,
   connect = connectDatabase,
   clock = () => new Date(),
+  random = Math.random,
 } = {}) {
   const router = express.Router();
   router.use("/api/admin", createAdminMiddleware(accountOptions));
@@ -233,6 +263,90 @@ function createAdminRouter({
     }
   });
 
+  router.post("/api/admin/events", async (req, res) => {
+    const event = parseMarketEvent(req.body);
+    if (!event) {
+      return res.status(400).json({
+        error: "Enter a title, description, valid stock, direction, and percentage from 0.01 to 100",
+      });
+    }
+
+    try {
+      await connect();
+      await ensureMarketState(marketState);
+      const now = clock();
+      const today = utcDateString(now);
+      await advanceMarketDay(marketState, today, { random, now });
+      const { stockSymbol: symbol, direction, amount } = event;
+      const stock = STOCKS_BY_SYMBOL.get(symbol);
+      const signedChange = direction === "increase" ? amount : -amount;
+      const currentPrice = { $ifNull: [`$prices.${symbol}`, stock.initial] };
+      const nextPrice = {
+        $max: [
+          1,
+          {
+            $round: [{
+              $multiply: [currentPrice, 1 + signedChange / 100],
+            }, 2],
+          },
+        ],
+      };
+      const nextPrices = {};
+      const nextHistory = {};
+      const nextChanges = {};
+      for (const entry of STOCKS) {
+        nextPrices[entry.symbol] = entry.symbol === symbol
+          ? nextPrice
+          : { $ifNull: [`$prices.${entry.symbol}`, entry.initial] };
+        nextHistory[entry.symbol] = historyExpression(
+          entry.symbol,
+          entry.symbol === symbol ? nextPrice : undefined,
+        );
+        nextChanges[entry.symbol] = entry.symbol === symbol
+          ? {
+            $round: [{
+              $subtract: [{
+                $multiply: [
+                  { $add: [{ $ifNull: [`$dailyChanges.${symbol}`, 0] }, 100] },
+                  1 + signedChange / 100,
+                ],
+              }, 100],
+            }, 2],
+          }
+          : { $ifNull: [`$dailyChanges.${entry.symbol}`, 0] };
+      }
+
+      const savedEvent = { ...event, createdAt: now };
+      await marketState.findOneAndUpdate(
+        { key: "global" },
+        [{
+          $set: {
+            prices: nextPrices,
+            history: nextHistory,
+            dailyChanges: nextChanges,
+            marketDate: today,
+            updatedAt: now,
+            events: {
+              $slice: [
+                { $concatArrays: [{ $ifNull: ["$events", []] }, [savedEvent]] },
+                -MARKET_EVENT_LIMIT,
+              ],
+            },
+          },
+        }],
+        { new: true, updatePipeline: true },
+      ).lean();
+      res.set("Cache-Control", "no-store");
+      res.status(201).json({
+        event: savedEvent,
+        message: "Event created and stock price updated",
+      });
+    } catch (error) {
+      console.error("Unable to create market event:", error);
+      res.status(500).json({ error: "Unable to create market event" });
+    }
+  });
+
   router.get("/api/admin/organizations", async (req, res) => {
     try {
       await connect();
@@ -326,4 +440,4 @@ function createAdminRouter({
   return router;
 }
 
-module.exports = { createAdminRouter, parseOrganization };
+module.exports = { createAdminRouter, parseOrganization, parseMarketEvent };

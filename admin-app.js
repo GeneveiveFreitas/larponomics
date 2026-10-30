@@ -14,6 +14,7 @@ app.use((req, res, next) => {
       route === "market/range" ||
       route === "market/prices" ||
       route === "market/reset" ||
+      route === "events" ||
       route === "organizations" ||
       /^organizations\/[a-f\d]{24}$/i.test(route)
     ) {

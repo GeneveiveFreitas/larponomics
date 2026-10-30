@@ -6,6 +6,7 @@
     { "source": "/api/admin/market/range", "destination": "/api/admin?route=market/range" },
     { "source": "/api/admin/market/prices", "destination": "/api/admin?route=market/prices" },
     { "source": "/api/admin/market/reset", "destination": "/api/admin?route=market/reset" },
+    { "source": "/api/admin/events", "destination": "/api/admin?route=events" },
     { "source": "/api/admin/organizations", "destination": "/api/admin?route=organizations" },
     {
       "source": "/api/admin/organizations/:id",

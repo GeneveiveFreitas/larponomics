@@ -57,6 +57,33 @@
           <button id="reset-prices" class="danger-button" type="button">Reset all prices</button>
         </form>
       </section>
+      <section class="block admin-section" aria-labelledby="events-heading">
+        <h2 id="events-heading">Create a market event</h2>
+        <p>Creating an event immediately applies its percentage change and publishes the event on the market page.</p>
+        <form id="event-form" class="admin-form">
+          <label>Event title
+            <input id="event-title" type="text" maxlength="100" required>
+          </label>
+          <label>Description
+            <textarea id="event-description" rows="4" maxlength="1000" required></textarea>
+          </label>
+          <div class="admin-inline-form">
+            <label>Stock
+              <select id="event-symbol" required></select>
+            </label>
+            <label>Change
+              <select id="event-direction" required>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+              </select>
+            </label>
+            <label>Amount (%)
+              <input id="event-amount" type="number" min="0.01" max="100" step="0.01" required>
+            </label>
+            <button type="submit">Create event</button>
+          </div>
+        </form>
+      </section>
       <section class="block admin-section" aria-labelledby="organizations-heading">
         <h2 id="organizations-heading">Organizations</h2>
         <div class="admin-form">
