@@ -50,7 +50,7 @@ const marketStateSchema = new mongoose.Schema(
     key: { type: String, required: true, unique: true },
     prices: { type: mongoose.Schema.Types.Mixed, required: true },
     history: { type: mongoose.Schema.Types.Mixed, required: true },
-    events: { type: mongoose.Schema.Types.Mixed, default: [] },
+    cumulativeChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
     updatedAt: { type: Date, default: Date.now },
   },
   { collection: "market_state", versionKey: false },
@@ -100,9 +100,9 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
       const previousPrice = history.length > 1
         ? history[history.length - 2]
         : price;
-      const dailyChange = history.length > 1
-        ? Number(((price / previousPrice - 1) * 100).toFixed(2))
-        : 0;
+      const dailyChange = state?.cumulativeChanges?.[stock.symbol] ??
+        state?.dailyChanges?.[stock.symbol] ??
+        (price / previousPrice - 1) * 100;
 
       return {
         symbol: stock.symbol,
@@ -113,20 +113,24 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
         history: history.slice(-HISTORY_LIMIT),
       };
     }),
-    events: Array.isArray(state?.events) ? state.events : [],
   };
 }
 
-async function createMarketEvent(marketState, event) {
+async function updateMarketPrices(
+  marketState,
+  upVotes,
+  downVotes,
+  { session } = {},
+) {
   const initial = initialMarketValues();
-  const prices = {};
-  const histories = {};
+  const priceUpdates = {};
+  const historyUpdates = {};
+  const cumulativeChangeUpdates = {};
 
-  for (const impact of event.impacts) {
-    const stock = STOCKS.find((item) => item.symbol === impact.symbol);
-    if (!stock) throw new Error(`Unknown stock symbol: ${impact.symbol}`);
-    const direction = impact.direction === "increase" ? 1 : -1;
-    const multiplier = 1 + direction * impact.percentage / 100;
+  for (const stock of STOCKS) {
+    const multiplier =
+      Math.pow(1.01, upVotes[stock.symbol] || 0) *
+      Math.pow(0.99, downVotes[stock.symbol] || 0);
     const nextPrice = {
       $max: [
         1,
@@ -140,8 +144,8 @@ async function createMarketEvent(marketState, event) {
         },
       ],
     };
-    prices[stock.symbol] = nextPrice;
-    histories[stock.symbol] = {
+    priceUpdates[stock.symbol] = nextPrice;
+    historyUpdates[stock.symbol] = {
       $slice: [
         {
           $concatArrays: [
@@ -152,111 +156,44 @@ async function createMarketEvent(marketState, event) {
         -HISTORY_LIMIT,
       ],
     };
+    cumulativeChangeUpdates[stock.symbol] = {
+      $add: [
+        {
+          $ifNull: [
+            `$cumulativeChanges.${stock.symbol}`,
+            { $ifNull: [`$dailyChanges.${stock.symbol}`, 0] },
+          ],
+        },
+        (upVotes[stock.symbol] || 0) - (downVotes[stock.symbol] || 0),
+      ],
+    };
   }
 
+  const initializedValues = initialMarketValues();
   return marketState.findOneAndUpdate(
     { key: MARKET_STATE_KEY },
     [
       {
         $set: {
           key: { $ifNull: ["$key", MARKET_STATE_KEY] },
-          prices: { $mergeObjects: [initial.prices, { $ifNull: ["$prices", {}] }] },
-          history: { $mergeObjects: [initial.history, { $ifNull: ["$history", {}] }] },
-          events: { $ifNull: ["$events", []] },
-        },
-      },
-      {
-        $set: {
-          prices: { $mergeObjects: ["$prices", prices] },
-          history: { $mergeObjects: ["$history", histories] },
-          events: { $concatArrays: ["$events", [{ $literal: event }]] },
-          updatedAt: new Date(),
-        },
-      },
-    ],
-    { new: true, upsert: true, updatePipeline: true },
-  ).lean();
-}
-
-async function removeMarketEvent(marketState, eventId) {
-  return marketState.findOneAndUpdate(
-    { key: MARKET_STATE_KEY },
-    [
-      {
-        $set: {
-          events: {
-            $filter: {
-              input: { $ifNull: ["$events", []] },
-              as: "event",
-              cond: { $ne: ["$$event.id", eventId] },
-            },
+          prices: {
+            $mergeObjects: [initializedValues.prices, { $ifNull: ["$prices", {}] }],
           },
-          updatedAt: new Date(),
-        },
-      },
-    ],
-    { new: true, updatePipeline: true },
-  ).lean();
-}
-
-async function setMarketPrice(marketState, symbol, price) {
-  const stock = STOCKS.find((item) => item.symbol === symbol);
-  if (!stock) throw new Error(`Unknown stock symbol: ${symbol}`);
-
-  const nextPrice = Math.round(price * 100) / 100;
-  const initial = initialMarketValues();
-  return marketState.findOneAndUpdate(
-    { key: MARKET_STATE_KEY },
-    [
-      {
-        $set: {
-          key: { $ifNull: ["$key", MARKET_STATE_KEY] },
-          prices: { $mergeObjects: [initial.prices, { $ifNull: ["$prices", {}] }] },
-          history: { $mergeObjects: [initial.history, { $ifNull: ["$history", {}] }] },
-        },
-      },
-      {
-        $set: {
-          prices: { $mergeObjects: ["$prices", { [symbol]: nextPrice }] },
           history: {
-            $mergeObjects: [
-              "$history",
-              {
-                [symbol]: {
-                  $slice: [
-                    {
-                      $concatArrays: [
-                        { $ifNull: [`$history.${symbol}`, [stock.initial]] },
-                        [nextPrice],
-                      ],
-                    },
-                    -HISTORY_LIMIT,
-                  ],
-                },
-              },
-            ],
+            $mergeObjects: [initializedValues.history, { $ifNull: ["$history", {}] }],
           },
+        },
+      },
+      {
+        $set: {
+          prices: priceUpdates,
+          history: historyUpdates,
+          cumulativeChanges: cumulativeChangeUpdates,
           updatedAt: new Date(),
         },
       },
     ],
-    { new: true, upsert: true, updatePipeline: true },
-  ).lean();
-}
-
-async function resetMarket(marketState) {
-  const initial = initialMarketValues();
-  return marketState.findOneAndUpdate(
-    { key: MARKET_STATE_KEY },
-    {
-      $set: {
-        prices: initial.prices,
-        history: initial.history,
-        events: [],
-        updatedAt: new Date(),
-      },
-    },
-    { new: true, upsert: true },
+    { new: true, upsert: true, updatePipeline: true, ...(session ? { session } : {}) },
   ).lean();
 }
 
@@ -294,10 +231,7 @@ module.exports = {
   createMarketHandler,
   connectDatabase,
   getMarketData,
-  createMarketEvent,
-  removeMarketEvent,
-  setMarketPrice,
-  resetMarket,
+  updateMarketPrices,
   MarketState,
   STOCKS,
   utcDateString,

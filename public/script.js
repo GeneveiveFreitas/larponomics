@@ -5,7 +5,6 @@ let selectedIndex = 0;
 let priceSort = "asc";
 let account = null;
 let accountLoading = true;
-let marketEventTitles = [];
 
 const $ = (id) => document.getElementById(id);
 const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
@@ -13,10 +12,8 @@ const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
 function renderAccount() {
   const login = $("discord-login");
   const accountUser = $("account-user");
-  const settingsLink = document.querySelector(".admin-market-link");
   login.hidden = accountLoading || Boolean(account);
   accountUser.hidden = !account;
-  settingsLink.hidden = !account?.isAdmin;
   if (account) {
     $("account-username").textContent = account.user.username;
     const avatar = $("account-avatar");
@@ -29,7 +26,7 @@ async function loadAccount() {
   accountLoading = true;
   renderAccount();
   try {
-    const response = await fetch("/larponomics/account", { cache: "no-store" });
+    const response = await fetch("/api/account", { cache: "no-store" });
     if (response.status === 401) {
       account = null;
     } else {
@@ -161,37 +158,12 @@ function render() {
   drawChart();
 }
 
-function renderMarketEvents(events) {
-  const primary = $("market-event-group");
-  const copy = $("market-event-group-copy");
-  const titles = Array.isArray(events)
-    ? events.map((event) => event.title).filter((title) => typeof title === "string")
-    : [];
-  marketEventTitles = titles.length
-    ? titles
-    : ["Check back here for the latest market event updates."];
-
-  primary.replaceChildren();
-  const marqueeWidth = $("market-event-marquee").clientWidth;
-  const createTitle = (title) => {
-    const item = document.createElement("span");
-    item.textContent = title;
-    return item;
-  };
-  for (const title of marketEventTitles) primary.appendChild(createTitle(title));
-  const copies = Math.max(1, Math.ceil(marqueeWidth / primary.scrollWidth));
-  for (let copyIndex = 1; copyIndex < copies; copyIndex++) {
-    for (const title of marketEventTitles) primary.appendChild(createTitle(title));
-  }
-  copy.replaceChildren(...[...primary.children].map((item) => item.cloneNode(true)));
-}
-
 async function loadMarket() {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch("/larponomics/market", {
+    const response = await fetch("/api/market", {
       cache: "no-store",
       signal: controller.signal,
     });
@@ -202,7 +174,6 @@ async function loadMarket() {
     if (!Array.isArray(result.stocks) || result.stocks.length === 0) {
       throw new Error("Market API returned no stock data");
     }
-    renderMarketEvents(result.events);
 
     const selectedSymbol = items[selectedIndex]?.symbol;
     items = result.stocks.map((stock) => ({
@@ -237,7 +208,6 @@ function scheduleNextUpdate() {
 
 window.addEventListener("resize", () => {
   if (items.length) drawChart();
-  renderMarketEvents(marketEventTitles.map((title) => ({ title })));
 });
 
 $("price-sort").addEventListener("change", (event) => {
@@ -256,7 +226,7 @@ document.addEventListener("visibilitychange", () => {
 
 $("logout-button").addEventListener("click", async () => {
   try {
-    const response = await fetch("/larponomics/auth/logout", { method: "POST" });
+    const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) {
       const result = await response.json();
       throw new Error(result.error || "Unable to sign out");

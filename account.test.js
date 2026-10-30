@@ -3,57 +3,62 @@ const express = require("express");
 const { after, test } = require("node:test");
 const { createAccountRouter } = require("./account");
 
-const now = new Date("2026-10-26T12:00:00.000Z");
-const adminAccount = {
+const today = "2026-10-26";
+const now = new Date(`${today}T12:00:00.000Z`);
+const account = {
   _id: "account-id",
-  discordId: "166644936047853568",
-  username: "MarketAdmin",
+  discordId: "12345678901234567",
+  username: "MarketFan",
   avatar: "avatar-hash",
+  dailyVoteDate: "",
+  dailyVotes: { up: {}, down: {} },
 };
 let server;
 let baseUrl;
-let marketUpdate;
-let marketState = {
-  prices: { A: 1800 },
-  history: { A: [1800] },
-};
+let updatedFilter;
+let updatedDocument;
+let updatedOptions;
+let marketPipeline;
 
 async function startServer({
-  accountData = adminAccount,
+  accountData = account,
+  updatedAccount = { ...account, dailyVoteDate: today },
   environment = {},
-  marketData = {
-    prices: { A: 1800 },
-    history: { A: [1800] },
-  },
 } = {}) {
   if (server) {
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     });
   }
-  marketUpdate = null;
-  marketState = marketData;
 
   const app = express();
   app.use(express.json());
   app.use(createAccountRouter({
     AccountModel: {
       findById: () => ({ lean: async () => accountData }),
+      findOneAndUpdate: (filter, update, options) => {
+        updatedFilter = filter;
+        updatedDocument = update;
+        updatedOptions = options;
+        return { lean: async () => updatedAccount };
+      },
     },
     MarketStateModel: {
-      findOne: () => ({ lean: async () => marketState }),
-      findOneAndUpdate: (filter, update, options) => {
-        marketUpdate = { filter, update, options };
+      findOne: () => ({ lean: async () => null }),
+      findOneAndUpdate: (filter, pipeline, options) => {
+        marketPipeline = pipeline;
+        assert.equal(options.session, undefined);
         return { lean: async () => ({}) };
       },
     },
     SessionModel: {
-      findOne: () => ({ lean: async () => ({ accountId: accountData._id }) }),
+      findOne: () => ({ lean: async () => ({ accountId: account._id }) }),
       deleteOne: async () => {},
     },
     connect: async () => {},
     clock: () => now,
     environment,
+    transaction: async (callback) => callback(undefined),
   }));
   return new Promise((resolve) => {
     server = app.listen(0, () => {
@@ -70,212 +75,152 @@ after(async () => {
   });
 });
 
-test("account endpoint exposes market admin status", async () => {
-  await startServer();
-  const response = await fetch(`${baseUrl}/larponomics/account`, {
+test("account endpoint reports whether today's votes were submitted", async () => {
+  await startServer({ accountData: { ...account, dailyVoteDate: today } });
+  const response = await fetch(`${baseUrl}/api/account`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
   const result = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(result.user.username, "MarketAdmin");
-  assert.equal(result.isAdmin, true);
-  assert.equal("daily" in result, false);
+  assert.equal(result.user.username, "MarketFan");
+  assert.deepEqual(result.daily, { date: today, submitted: true });
 });
 
-test("hardcoded admins are recognized independently of environment variables", async () => {
-  await startServer({
-    accountData: { ...adminAccount, discordId: "294557281863860224" },
-    environment: { ADMIN_DISCORD_IDS: "98765432109876543" },
-  });
-  const response = await fetch(`${baseUrl}/larponomics/account`, {
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
-
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).isAdmin, true);
-});
-
-test("market settings require a signed-in admin", async () => {
-  await startServer({
-    accountData: { ...adminAccount, discordId: "98765432109876543" },
-  });
-  const anonymousResponse = await fetch(`${baseUrl}/larponomics/admin/market`);
-  const nonAdminResponse = await fetch(`${baseUrl}/larponomics/admin/market`, {
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
-
-  assert.equal(anonymousResponse.status, 401);
-  assert.equal(nonAdminResponse.status, 403);
-});
-
-test("market admin can read market settings", async () => {
+test("vote submission persists a 3-up/3-down ballot and updates prices", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
-  const result = await response.json();
-
-  assert.equal(response.status, 200);
-  assert.equal(result.stocks.length, 39);
-  assert.equal(result.stocks.find((stock) => stock.symbol === "A").price, 1800);
-});
-
-test("market settings include every active event", async () => {
-  const activeEvent = {
-    id: "event-id",
-    title: "City festival",
-    impacts: [{ symbol: "A", direction: "increase", percentage: 10 }],
-  };
-  await startServer({
-    marketData: {
-      prices: { A: 1980 },
-      history: { A: [1800, 1980] },
-      events: [activeEvent],
-    },
-  });
-  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
-
-  assert.equal(response.status, 200);
-  assert.deepEqual((await response.json()).events, [activeEvent]);
-});
-
-test("market admin can set a price and append price history", async () => {
-  await startServer();
-  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
-    method: "PUT",
-    headers: {
-      Cookie: "larponomics_session=test-session",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ symbol: "A", price: 1900.129 }),
-  });
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(marketUpdate.filter, { key: "global" });
-  assert.equal(marketUpdate.options.updatePipeline, true);
-  assert.equal(marketUpdate.update[1].$set.prices.$mergeObjects[1].A, 1900.13);
-  assert.deepEqual(
-    marketUpdate.update[1].$set.history.$mergeObjects[1].A.$slice[0].$concatArrays[1],
-    [1900.13],
-  );
-});
-
-test("market price updates reject unknown symbols and invalid prices", async () => {
-  await startServer();
-  for (const body of [
-    { symbol: "UNKNOWN", price: 100 },
-    { symbol: "A", price: 0 },
-    { symbol: "A", price: "1900" },
-  ]) {
-    const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
-      method: "PUT",
-      headers: {
-        Cookie: "larponomics_session=test-session",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    assert.equal(response.status, 400);
-  }
-  assert.equal(marketUpdate, null);
-});
-
-test("market admin can reset prices and history to their initial values", async () => {
-  await startServer();
-  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
-    method: "POST",
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
-
-  assert.equal(response.status, 200);
-  assert.equal(marketUpdate.options.updatePipeline, undefined);
-  assert.equal(marketUpdate.update.$set.prices.A, 1800);
-  assert.deepEqual(marketUpdate.update.$set.history.A, [1800]);
-  assert.deepEqual(marketUpdate.update.$set.events, []);
-});
-
-test("market admin can create an event with stock impacts and update prices", async () => {
-  await startServer();
-  const response = await fetch(`${baseUrl}/larponomics/admin/events`, {
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
     method: "POST",
     headers: {
       Cookie: "larponomics_session=test-session",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      title: "City festival",
-      impacts: [
-        { symbol: "A", direction: "increase", percentage: 10 },
-        { symbol: "B", direction: "decrease", percentage: 2.5 },
-      ],
+      up: { A: 1, B: 1, D: 1 },
+      down: { C: 1, E: 1, F: 1 },
     }),
   });
   const result = await response.json();
-  const update = marketUpdate.update[1].$set;
-  const increase = update.prices.$mergeObjects[1].A.$max[1].$round[0].$multiply;
-  const decrease = update.prices.$mergeObjects[1].B.$max[1].$round[0].$multiply;
-  const createdEvent = update.events.$concatArrays[1][0].$literal;
-
-  assert.equal(response.status, 201);
-  assert.deepEqual(increase, [{ $ifNull: ["$prices.A", 1800] }, 1.1]);
-  assert.deepEqual(decrease, [{ $ifNull: ["$prices.B", 1200] }, 0.975]);
-  assert.equal(createdEvent.title, "City festival");
-  assert.equal(createdEvent.impacts.length, 2);
-  assert.match(createdEvent.id, /^[\da-f-]{36}$/);
-  assert.ok(result.stocks.length > 0);
-});
-
-test("market event creation rejects invalid and duplicate stock impacts", async () => {
-  await startServer();
-  const invalidEvents = [
-    { title: "   ", impacts: [{ symbol: "A", direction: "increase", percentage: 10 }] },
-    { title: "Event", impacts: [] },
-    { title: "Event", impacts: [{ symbol: "UNKNOWN", direction: "increase", percentage: 10 }] },
-    { title: "Event", impacts: [{ symbol: "A", direction: "sideways", percentage: 10 }] },
-    { title: "Event", impacts: [{ symbol: "A", direction: "increase", percentage: 0 }] },
-    {
-      title: "Event",
-      impacts: [
-        { symbol: "A", direction: "increase", percentage: 10 },
-        { symbol: "A", direction: "decrease", percentage: 10 },
-      ],
-    },
-  ];
-
-  for (const body of invalidEvents) {
-    const response = await fetch(`${baseUrl}/larponomics/admin/events`, {
-      method: "POST",
-      headers: {
-        Cookie: "larponomics_session=test-session",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    assert.equal(response.status, 400);
-  }
-  assert.equal(marketUpdate, null);
-});
-
-test("market admins can remove an active event without reverting prices", async () => {
-  await startServer({
-    marketData: {
-      prices: { A: 1980 },
-      history: { A: [1800, 1980] },
-      events: [{ id: "event-id", title: "Festival", impacts: [] }],
-    },
-  });
-  const response = await fetch(`${baseUrl}/larponomics/admin/events/event-id`, {
-    method: "DELETE",
-    headers: { Cookie: "larponomics_session=test-session" },
-  });
+  const priceA = marketPipeline[1].$set.prices.A.$max[1].$round[0].$multiply[1];
+  const priceB = marketPipeline[1].$set.prices.B.$max[1].$round[0].$multiply[1];
 
   assert.equal(response.status, 200);
-  assert.deepEqual(marketUpdate.update[0].$set.events.$filter.cond, {
-    $ne: ["$$event.id", "event-id"],
+  assert.deepEqual(result.daily, { date: today, submitted: true });
+  assert.deepEqual(updatedFilter, { _id: account._id, dailyVoteDate: { $ne: today } });
+  assert.deepEqual(updatedDocument.$set.dailyVotes, {
+    up: { A: 1, B: 1, D: 1 },
+    down: { C: 1, E: 1, F: 1 },
   });
+  assert.equal(updatedOptions.session, undefined);
+  assert.equal(priceA, 1.01);
+  assert.equal(priceB, 1.01);
+  assert.equal(marketPipeline[1].$set.prices.C.$max[1].$round[0].$multiply[1], 0.99);
+  assert.deepEqual(marketPipeline[1].$set.cumulativeChanges.A, {
+    $add: [
+      {
+        $ifNull: [
+          "$cumulativeChanges.A",
+          { $ifNull: ["$dailyChanges.A", 0] },
+        ],
+      },
+      1,
+    ],
+  });
+  assert.equal(marketPipeline[1].$set.cumulativeChanges.C.$add[1], -1);
+  assert.equal(marketPipeline[1].$set.history.A.$slice[1], -120);
+  assert.equal(result.market.stocks.length, 39);
+});
+
+test("vote submission rejects allocations other than three votes per direction", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { A: 2 }, down: { B: 3 } }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /3 unique stocks/);
+});
+
+test("vote submission rejects multiple votes for the same stock", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { A: 2, B: 1 }, down: { C: 1, D: 1, E: 1 } }),
+  });
+
+  assert.equal(response.status, 400);
+});
+
+test("vote submission rejects using the same stock for both directions", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { C: 1, D: 1, E: 1 },
+    }),
+  });
+
+  assert.equal(response.status, 400);
+});
+
+test("vote submission rejects unknown symbols", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ up: { INVALID: 3 }, down: { A: 3 } }),
+  });
+
+  assert.equal(response.status, 400);
+});
+
+test("an account can only submit one ballot per UTC day", async () => {
+  await startServer({ updatedAccount: null });
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: {
+      Cookie: "larponomics_session=test-session",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { D: 1, E: 1, F: 1 },
+    }),
+  });
+
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /already voted today/);
+});
+
+test("vote endpoint rejects unauthenticated submissions", async () => {
+  await startServer();
+  const response = await fetch(`${baseUrl}/api/account/votes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      up: { A: 1, B: 1, C: 1 },
+      down: { D: 1, E: 1, F: 1 },
+    }),
+  });
+
+  assert.equal(response.status, 401);
 });
 
 test("Discord sign-in reports missing OAuth configuration", async () => {

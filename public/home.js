@@ -3,13 +3,11 @@ const accountUser = document.getElementById("account-user");
 const avatar = document.getElementById("account-avatar");
 const username = document.getElementById("account-username");
 const message = document.getElementById("account-message");
-const settingsLink = document.querySelector(".admin-market-link");
 login.hidden = true;
 
 function renderAccount(account) {
   login.hidden = Boolean(account);
   accountUser.hidden = !account;
-  settingsLink.hidden = !account?.isAdmin;
   if (!account) return;
 
   username.textContent = account.user.username;
@@ -19,7 +17,7 @@ function renderAccount(account) {
 
 async function loadAccount() {
   try {
-    const response = await fetch("/larponomics/account", { cache: "no-store" });
+    const response = await fetch("/api/account", { cache: "no-store" });
     if (response.status === 401) {
       renderAccount(null);
       return;
@@ -38,7 +36,7 @@ async function loadAccount() {
 
 document.getElementById("logout-button").addEventListener("click", async () => {
   try {
-    const response = await fetch("/larponomics/auth/logout", { method: "POST" });
+    const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) {
       const result = await response.json();
       throw new Error(result.error || "Unable to sign out");
