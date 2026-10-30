@@ -159,7 +159,7 @@ function createAccountRouter({
     res.redirect(authorizeUrl.toString());
   });
 
-  router.get("/api/auth/discord/callback", async (req, res) => {
+  router.get("/larponomics/auth/discord/callback", async (req, res) => {
     const config = discordConfig();
     clearCookie(res, OAUTH_STATE_COOKIE, secureCookies);
     if (!config) return sendUnavailable(res);
@@ -233,7 +233,7 @@ function createAccountRouter({
     }
   });
 
-  router.get("/api/account", async (req, res) => {
+  router.get("/larponomics/account", async (req, res) => {
     try {
       const account = await findAccount(req);
       if (!account) return res.status(401).json({ error: "Sign in to access your account" });
@@ -245,7 +245,7 @@ function createAccountRouter({
     }
   });
 
-  router.get("/api/admin/market", async (req, res) => {
+  router.get("/larponomics/admin/market", async (req, res) => {
     try {
       if (!await requireMarketAdmin(req, res)) return;
       res.set("Cache-Control", "no-store");
@@ -256,7 +256,7 @@ function createAccountRouter({
     }
   });
 
-  router.put("/api/admin/market", async (req, res) => {
+  router.put("/larponomics/admin/market", async (req, res) => {
     try {
       if (!await requireMarketAdmin(req, res)) return;
       const { symbol, price } = req.body || {};
@@ -279,7 +279,7 @@ function createAccountRouter({
     }
   });
 
-  router.post("/api/admin/market", async (req, res) => {
+  router.post("/larponomics/admin/market", async (req, res) => {
     try {
       if (!await requireMarketAdmin(req, res)) return;
       await resetMarket(MarketStateModel);
@@ -291,7 +291,7 @@ function createAccountRouter({
     }
   });
 
-  router.post("/api/admin/events", async (req, res) => {
+  router.post("/larponomics/admin/events", async (req, res) => {
     try {
       if (!await requireMarketAdmin(req, res)) return;
       const { title, impacts } = req.body || {};
@@ -347,7 +347,7 @@ function createAccountRouter({
     }
   });
 
-  router.delete("/api/admin/events/:eventId", async (req, res) => {
+  router.delete("/larponomics/admin/events/:eventId", async (req, res) => {
     try {
       if (!await requireMarketAdmin(req, res)) return;
       const market = await getMarketData(MarketStateModel, utcDateString(clock()));
@@ -363,7 +363,7 @@ function createAccountRouter({
     }
   });
 
-  router.post("/api/auth/logout", async (req, res) => {
+  router.post("/larponomics/auth/logout", async (req, res) => {
     try {
       const token = cookieValue(req, SESSION_COOKIE);
       if (token) {

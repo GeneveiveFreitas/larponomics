@@ -29,7 +29,7 @@ async function loadAccount() {
   accountLoading = true;
   renderAccount();
   try {
-    const response = await fetch("/api/account", { cache: "no-store" });
+    const response = await fetch("/larponomics/account", { cache: "no-store" });
     if (response.status === 401) {
       account = null;
     } else {
@@ -191,7 +191,7 @@ async function loadMarket() {
   const timeoutId = setTimeout(() => controller.abort(), MARKET_REQUEST_TIMEOUT);
 
   try {
-    const response = await fetch("/api/market", {
+    const response = await fetch("/larponomics/market", {
       cache: "no-store",
       signal: controller.signal,
     });
@@ -256,7 +256,7 @@ document.addEventListener("visibilitychange", () => {
 
 $("logout-button").addEventListener("click", async () => {
   try {
-    const response = await fetch("/api/auth/logout", { method: "POST" });
+    const response = await fetch("/larponomics/auth/logout", { method: "POST" });
     if (!response.ok) {
       const result = await response.json();
       throw new Error(result.error || "Unable to sign out");

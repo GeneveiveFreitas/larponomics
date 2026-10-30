@@ -66,7 +66,7 @@ function renderOrganizations() {
 async function loadOrganizations() {
   organizationsMessage.textContent = "Loading organizations...";
   try {
-    const response = await fetch("/larpnomics/organizations", { cache: "no-store" });
+    const response = await fetch("/larponomics/organizations", { cache: "no-store" });
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || `Organizations request failed (${response.status})`);
@@ -86,7 +86,7 @@ async function loadOrganizations() {
 
 async function loadAccount() {
   try {
-    const response = await fetch("/api/account", { cache: "no-store" });
+    const response = await fetch("/larponomics/account", { cache: "no-store" });
     if (response.status === 401) return;
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Unable to load account");

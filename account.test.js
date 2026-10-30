@@ -72,7 +72,7 @@ after(async () => {
 
 test("account endpoint exposes market admin status", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/account`, {
+  const response = await fetch(`${baseUrl}/larponomics/account`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
   const result = await response.json();
@@ -88,7 +88,7 @@ test("hardcoded admins are recognized independently of environment variables", a
     accountData: { ...adminAccount, discordId: "294557281863860224" },
     environment: { ADMIN_DISCORD_IDS: "98765432109876543" },
   });
-  const response = await fetch(`${baseUrl}/api/account`, {
+  const response = await fetch(`${baseUrl}/larponomics/account`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
 
@@ -100,8 +100,8 @@ test("market settings require a signed-in admin", async () => {
   await startServer({
     accountData: { ...adminAccount, discordId: "98765432109876543" },
   });
-  const anonymousResponse = await fetch(`${baseUrl}/api/admin/market`);
-  const nonAdminResponse = await fetch(`${baseUrl}/api/admin/market`, {
+  const anonymousResponse = await fetch(`${baseUrl}/larponomics/admin/market`);
+  const nonAdminResponse = await fetch(`${baseUrl}/larponomics/admin/market`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
 
@@ -111,7 +111,7 @@ test("market settings require a signed-in admin", async () => {
 
 test("market admin can read market settings", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/admin/market`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
   const result = await response.json();
@@ -134,7 +134,7 @@ test("market settings include every active event", async () => {
       events: [activeEvent],
     },
   });
-  const response = await fetch(`${baseUrl}/api/admin/market`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
     headers: { Cookie: "larponomics_session=test-session" },
   });
 
@@ -144,7 +144,7 @@ test("market settings include every active event", async () => {
 
 test("market admin can set a price and append price history", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/admin/market`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
     method: "PUT",
     headers: {
       Cookie: "larponomics_session=test-session",
@@ -170,7 +170,7 @@ test("market price updates reject unknown symbols and invalid prices", async () 
     { symbol: "A", price: 0 },
     { symbol: "A", price: "1900" },
   ]) {
-    const response = await fetch(`${baseUrl}/api/admin/market`, {
+    const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
       method: "PUT",
       headers: {
         Cookie: "larponomics_session=test-session",
@@ -185,7 +185,7 @@ test("market price updates reject unknown symbols and invalid prices", async () 
 
 test("market admin can reset prices and history to their initial values", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/admin/market`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/market`, {
     method: "POST",
     headers: { Cookie: "larponomics_session=test-session" },
   });
@@ -199,7 +199,7 @@ test("market admin can reset prices and history to their initial values", async 
 
 test("market admin can create an event with stock impacts and update prices", async () => {
   await startServer();
-  const response = await fetch(`${baseUrl}/api/admin/events`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/events`, {
     method: "POST",
     headers: {
       Cookie: "larponomics_session=test-session",
@@ -246,7 +246,7 @@ test("market event creation rejects invalid and duplicate stock impacts", async 
   ];
 
   for (const body of invalidEvents) {
-    const response = await fetch(`${baseUrl}/api/admin/events`, {
+    const response = await fetch(`${baseUrl}/larponomics/admin/events`, {
       method: "POST",
       headers: {
         Cookie: "larponomics_session=test-session",
@@ -267,7 +267,7 @@ test("market admins can remove an active event without reverting prices", async 
       events: [{ id: "event-id", title: "Festival", impacts: [] }],
     },
   });
-  const response = await fetch(`${baseUrl}/api/admin/events/event-id`, {
+  const response = await fetch(`${baseUrl}/larponomics/admin/events/event-id`, {
     method: "DELETE",
     headers: { Cookie: "larponomics_session=test-session" },
   });

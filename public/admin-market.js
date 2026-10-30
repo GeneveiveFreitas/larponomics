@@ -126,7 +126,7 @@ function renderEvents() {
 }
 
 async function requestMarket(method, body) {
-  const response = await fetch("/api/admin/market", {
+  const response = await fetch("/larponomics/admin/market", {
     method,
     cache: "no-store",
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -140,8 +140,8 @@ async function requestMarket(method, body) {
 async function requestEvents(method, body, eventId = "") {
   const response = await fetch(
     eventId
-      ? `/api/admin/events/${encodeURIComponent(eventId)}`
-      : "/api/admin/events",
+      ? `/larponomics/admin/events/${encodeURIComponent(eventId)}`
+      : "/larponomics/admin/events",
     {
       method,
       cache: "no-store",
@@ -181,7 +181,7 @@ async function savePrice(symbol, input, button) {
 }
 
 async function loadPage() {
-  const accountResponse = await fetch("/api/account", { cache: "no-store" });
+  const accountResponse = await fetch("/larponomics/account", { cache: "no-store" });
   if (accountResponse.status === 401) {
     renderAccount(null);
     showMessage("Sign in with an authorized Discord account to manage the market.");
@@ -267,7 +267,7 @@ $("reset-market").addEventListener("click", async () => {
 
 $("logout-button").addEventListener("click", async () => {
   try {
-    const response = await fetch("/api/auth/logout", { method: "POST" });
+    const response = await fetch("/larponomics/auth/logout", { method: "POST" });
     if (!response.ok) {
       const result = await response.json();
       throw new Error(result.error || "Unable to sign out");
