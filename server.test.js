@@ -134,6 +134,39 @@ test("market endpoint returns saved prices and price history", async () => {
 test("daily stock changes include both limits of the five-percent range", () => {
   assert.equal(randomDailyChange(() => 0), -5);
   assert.equal(randomDailyChange(() => 1), 5);
+  assert.equal(randomDailyChange(() => 0.5, -2, 4), 1);
+  assert.equal(randomDailyChange(() => -1), -5);
+  assert.equal(randomDailyChange(() => 2), 5);
+});
+
+test("daily market updates use the configured fluctuation range", async () => {
+  const history = Object.fromEntries(STOCKS.map(({ symbol, initial }) => [symbol, [initial]]));
+  const rangedMarketState = createMarketState({
+    prices: initialPrices,
+    history,
+    dailyChanges: {},
+    dailyChangeMin: 1,
+    dailyChangeMax: 2,
+    marketDate: "2026-10-20",
+  });
+  const app = createApp({
+    marketState: rangedMarketState,
+    clock: () => new Date("2026-10-21T00:00:00.000Z"),
+    random: () => 0,
+    connect: async () => {},
+  });
+  const rangedServer = app.listen(0);
+  await new Promise((resolve) => rangedServer.once("listening", resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${rangedServer.address().port}/api/market`);
+    const result = await response.json();
+    assert.equal(response.status, 200);
+    assert.ok(result.stocks.every((stock) => stock.dailyChange === 1));
+  } finally {
+    await new Promise((resolve, reject) => {
+      rangedServer.close((error) => error ? reject(error) : resolve());
+    });
+  }
 });
 
 test("app serves the home, market, and organizations pages without voting", async () => {

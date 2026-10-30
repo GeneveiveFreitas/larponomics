@@ -8,41 +8,41 @@ const STOCKS = [
   { symbol: "B", name: "B Corp", initial: 1200 },
   { symbol: "C", name: "C Corp", initial: 1000 },
   { symbol: "D", name: "D Corp", initial: 500 },
-  { symbol: "E", name: "E Corp", initial: 600 },
-  { symbol: "F", name: "F Corp", initial: 600 },
-  { symbol: "G", name: "G Corp", initial: 300 },
-  { symbol: "H", name: "H Corp", initial: 300 },
+  { symbol: "E", name: "E Corp", initial: 500 },
+  { symbol: "F", name: "F Corp", initial: 500 },
+  { symbol: "G", name: "G Corp", initial: 500 },
+  { symbol: "H", name: "H Corp", initial: 500 },
   { symbol: "I", name: "I Corp", initial: 500 },
-  { symbol: "J", name: "J Corp", initial: 100 },
-  { symbol: "K", name: "K Corp", initial: 300 },
-  { symbol: "L", name: "L Corp", initial: 100 },
-  { symbol: "M", name: "M Corp", initial: 300 },
+  { symbol: "J", name: "J Corp", initial: 500 },
+  { symbol: "K", name: "K Corp", initial: 500 },
+  { symbol: "L", name: "L Corp", initial: 500 },
+  { symbol: "M", name: "M Corp", initial: 500 },
   { symbol: "N", name: "N Corp", initial: 500 },
-  { symbol: "O", name: "O Corp", initial: 300 },
-  { symbol: "P", name: "P Corp", initial: 200 },
-  { symbol: "Q", name: "Q Corp", initial: 200 },
-  { symbol: "R", name: "R Corp", initial: 600 },
-  { symbol: "S", name: "S Corp", initial: 200 },
-  { symbol: "T", name: "T Corp", initial: 600 },
-  { symbol: "U", name: "U Corp", initial: 300 },
-  { symbol: "V", name: "V Corp", initial: 400 },
-  { symbol: "W", name: "W Corp", initial: 100 },
-  { symbol: "X", name: "X Corp", initial: 100 },
-  { symbol: "Y", name: "Y Corp", initial: 300 },
-  { symbol: "HANA", name: "Hana Association", initial: 300 },
-  { symbol: "ZWEI", name: "Zwei Association", initial: 300 },
-  { symbol: "TRES", name: "Tres Association", initial: 300 },
-  { symbol: "SHI", name: "Shi Association", initial: 300 },
-  { symbol: "CINQ", name: "Cinq Association", initial: 300 },
-  { symbol: "LIU", name: "Liu Association", initial: 300 },
-  { symbol: "SEVEN", name: "Seven Association", initial: 300 },
-  { symbol: "EIGHT", name: "Eight Association", initial: 300 },
-  { symbol: "DEVYAT", name: "Devyat Association", initial: 300 },
-  { symbol: "DIECI", name: "Dieci Association", initial: 300 },
-  { symbol: "OUFI", name: "Oufi Association", initial: 300 },
-  { symbol: "GILDED", name: "Gilded City", initial: 200 },
-  { symbol: "DODEKA", name: "Dodeka Association", initial: 300 },
-  { symbol: "LATERANO", name: "Laterano", initial: 200 },
+  { symbol: "O", name: "O Corp", initial: 500 },
+  { symbol: "P", name: "P Corp", initial: 500 },
+  { symbol: "Q", name: "Q Corp", initial: 500 },
+  { symbol: "R", name: "R Corp", initial: 500 },
+  { symbol: "S", name: "S Corp", initial: 500 },
+  { symbol: "T", name: "T Corp", initial: 500 },
+  { symbol: "U", name: "U Corp", initial: 500 },
+  { symbol: "V", name: "V Corp", initial: 500 },
+  { symbol: "W", name: "W Corp", initial: 500 },
+  { symbol: "X", name: "X Corp", initial: 500 },
+  { symbol: "Y", name: "Y Corp", initial: 500 },
+  { symbol: "HANA", name: "Hana Association", initial: 100 },
+  { symbol: "ZWEI", name: "Zwei Association", initial: 100 },
+  { symbol: "TRES", name: "Tres Association", initial: 100 },
+  { symbol: "SHI", name: "Shi Association", initial: 100 },
+  { symbol: "CINQ", name: "Cinq Association", initial: 100 },
+  { symbol: "LIU", name: "Liu Association", initial: 100 },
+  { symbol: "SEVEN", name: "Seven Association", initial: 100 },
+  { symbol: "EIGHT", name: "Eight Association", initial: 100 },
+  { symbol: "DEVYAT", name: "Devyat Association", initial: 100 },
+  { symbol: "DIECI", name: "Dieci Association", initial: 100 },
+  { symbol: "OUFI", name: "Oufi Association", initial: 100 },
+  { symbol: "GILDED", name: "Gilded City", initial: 100 },
+  { symbol: "DODEKA", name: "Dodeka Association", initial: 100 },
+  { symbol: "LATERANO", name: "Laterano", initial: 100 },
 ];
 
 const marketStateSchema = new mongoose.Schema(
@@ -51,6 +51,8 @@ const marketStateSchema = new mongoose.Schema(
     prices: { type: mongoose.Schema.Types.Mixed, required: true },
     history: { type: mongoose.Schema.Types.Mixed, required: true },
     dailyChanges: { type: mongoose.Schema.Types.Mixed, default: {} },
+    dailyChangeMin: { type: Number, default: -5 },
+    dailyChangeMax: { type: Number, default: 5 },
     marketDate: { type: String, default: "" },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -116,14 +118,17 @@ async function getMarketData(marketState = MarketState, today = utcDateString(ne
   };
 }
 
-function randomDailyChange(random = Math.random) {
-  return Math.max(-5, Math.min(5, Math.floor(random() * 1001) / 100 - 5));
+function randomDailyChange(random = Math.random, min = -5, max = 5) {
+  const sample = Math.max(0, Math.min(1, random()));
+  return Math.round((min + sample * (max - min)) * 100) / 100;
 }
 
 async function advanceMarketDay(marketState, today, { random = Math.random, now = new Date() } = {}) {
   const initial = initialMarketValues();
   const existing = await marketState.findOne({ key: MARKET_STATE_KEY }).lean();
   if (existing?.marketDate === today) return existing;
+  const min = existing?.dailyChangeMin ?? -5;
+  const max = existing?.dailyChangeMax ?? 5;
 
   if (!existing) {
     try {
@@ -135,6 +140,8 @@ async function advanceMarketDay(marketState, today, { random = Math.random, now 
             prices: initial.prices,
             history: initial.history,
             dailyChanges: {},
+            dailyChangeMin: -5,
+            dailyChangeMax: 5,
             marketDate: "",
           },
         },
@@ -149,7 +156,7 @@ async function advanceMarketDay(marketState, today, { random = Math.random, now 
   const priceUpdates = {};
   const historyUpdates = {};
   for (const stock of STOCKS) {
-    const change = randomDailyChange(random);
+    const change = randomDailyChange(random, min, max);
     const nextPrice = {
       $max: [
         1,
@@ -229,6 +236,7 @@ module.exports = {
   createMarketHandler,
   connectDatabase,
   getMarketData,
+  initialMarketValues,
   advanceMarketDay,
   randomDailyChange,
   MarketState,

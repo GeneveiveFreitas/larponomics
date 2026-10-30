@@ -514,6 +514,96 @@ button:focus-visible {
   font-weight: 700;
 }
 
+.admin-nav-link[hidden] {
+  display: none;
+}
+
+.admin-panel {
+  display: grid;
+  max-width: 900px;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.admin-section h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.admin-section > p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.admin-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.admin-form label {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-muted);
+  color: var(--text);
+  font: inherit;
+}
+
+.admin-form textarea {
+  resize: vertical;
+}
+
+.admin-form button {
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #410202;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.admin-form button:hover {
+  background: #f70000;
+}
+
+.admin-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-form .danger-button {
+  background: #7f1d1d;
+}
+
+.admin-form .danger-button:hover {
+  background: #b91c1c;
+}
+
+.admin-inline-form > label {
+  flex: 1 1 180px;
+}
+
 canvas {
   display: block;
   width: 100%;

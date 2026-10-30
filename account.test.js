@@ -60,6 +60,7 @@ test("account endpoint returns the signed-in Discord profile", async () => {
   assert.deepEqual(result.user, {
     id: account.discordId,
     username: "MarketFan",
+    isAdmin: false,
     avatarUrl: `https://cdn.discordapp.com/avatars/${account.discordId}/avatar-hash.png?size=96`,
   });
   assert.equal("daily" in result, false);

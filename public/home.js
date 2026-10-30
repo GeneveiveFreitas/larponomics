@@ -3,11 +3,13 @@ const accountUser = document.getElementById("account-user");
 const avatar = document.getElementById("account-avatar");
 const username = document.getElementById("account-username");
 const message = document.getElementById("account-message");
+const adminLink = document.querySelector(".admin-nav-link");
 login.hidden = true;
 
 function renderAccount(account) {
   login.hidden = Boolean(account);
   accountUser.hidden = !account;
+  if (adminLink) adminLink.hidden = !account?.user?.isAdmin;
   if (!account) return;
 
   username.textContent = account.user.username;

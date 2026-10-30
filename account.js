@@ -6,6 +6,7 @@ const { connectDatabase } = require("./market");
 const SESSION_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_COOKIE = "larponomics_session";
 const OAUTH_STATE_COOKIE = "larponomics_oauth_state";
+const ADMIN_DISCORD_ID = "166644936047853568";
 
 const accountSchema = new mongoose.Schema(
   {
@@ -63,10 +64,44 @@ function accountPayload(account) {
     user: {
       id: account.discordId,
       username: account.username,
+      isAdmin: account.discordId === ADMIN_DISCORD_ID,
       avatarUrl: account.avatar
         ? `https://cdn.discordapp.com/avatars/${account.discordId}/${encodeURIComponent(account.avatar)}.png?size=96`
         : null,
     },
+  };
+}
+
+function createAdminMiddleware({
+  AccountModel = Account,
+  SessionModel = AccountSession,
+  connect = connectDatabase,
+  clock = () => new Date(),
+} = {}) {
+  return async function requireAdmin(req, res, next) {
+    try {
+      const token = cookieValue(req, SESSION_COOKIE);
+      if (!token) return res.status(401).json({ error: "Sign in to access admin settings" });
+
+      await connect();
+      const session = await SessionModel.findOne({
+        tokenHash: hashToken(token),
+        expiresAt: { $gt: clock() },
+      }).lean();
+      if (!session) return res.status(401).json({ error: "Sign in to access admin settings" });
+
+      const account = await AccountModel.findById(session.accountId).lean();
+      if (!account) return res.status(401).json({ error: "Sign in to access admin settings" });
+      if (account.discordId !== ADMIN_DISCORD_ID) {
+        return res.status(403).json({ error: "You are not authorized to access admin settings" });
+      }
+
+      req.account = account;
+      next();
+    } catch (error) {
+      console.error("Unable to authorize admin request:", error);
+      res.status(500).json({ error: "Unable to authorize admin request" });
+    }
   };
 }
 
@@ -231,5 +266,7 @@ function createAccountRouter({
 module.exports = {
   accountPayload,
   createAccountRouter,
+  createAdminMiddleware,
+  ADMIN_DISCORD_ID,
   Account,
 };

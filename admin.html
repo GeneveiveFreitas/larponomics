@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin Settings - Kethercraft Stock Market</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="header-top">
+        <nav class="site-nav" aria-label="Main navigation">
+          <a href="/index.html">Home</a>
+          <a href="/market.html">Market</a>
+          <a href="/organizations.html">Organizations</a>
+          <a class="admin-nav-link active" href="/admin" aria-current="page" hidden>Admin settings</a>
+        </nav>
+        <div class="account-bar">
+          <a id="discord-login" class="account-button" href="/api/auth/discord">Sign In</a>
+          <div id="account-user" hidden>
+            <img id="account-avatar" alt="" hidden>
+            <span id="account-username"></span>
+            <button id="logout-button" type="button">Sign Out</button>
+          </div>
+        </div>
+        <p id="account-message" class="account-message" role="status" aria-live="polite"></p>
+      </div>
+      <h1>Admin Settings</h1>
+    </header>
+    <main class="admin-panel">
+      <p id="admin-message" class="market-message" role="status" aria-live="polite"></p>
+      <section class="block admin-section" aria-labelledby="range-heading">
+        <h2 id="range-heading">Daily stock fluctuation</h2>
+        <p>Set the inclusive minimum and maximum random daily change. Values can range from -100% to 100%.</p>
+        <form id="range-form" class="admin-form admin-inline-form">
+          <label>Minimum percent
+            <input id="range-min" name="min" type="number" min="-100" max="100" step="0.01" required>
+          </label>
+          <label>Maximum percent
+            <input id="range-max" name="max" type="number" min="-100" max="100" step="0.01" required>
+          </label>
+          <button type="submit">Save range</button>
+        </form>
+      </section>
+      <section class="block admin-section" aria-labelledby="prices-heading">
+        <h2 id="prices-heading">Stock prices</h2>
+        <p>Set a price manually or reset all prices to their initial values. A reset keeps chart history and records the reset as a new point.</p>
+        <form id="price-form" class="admin-form admin-inline-form">
+          <label>Stock
+            <select id="price-symbol" required></select>
+          </label>
+          <label>New price
+            <input id="price-value" type="number" min="1" max="1000000000000" step="0.01" required>
+          </label>
+          <button type="submit">Set price</button>
+          <button id="reset-prices" class="danger-button" type="button">Reset all prices</button>
+        </form>
+      </section>
+      <section class="block admin-section" aria-labelledby="organizations-heading">
+        <h2 id="organizations-heading">Organizations</h2>
+        <div class="admin-form">
+          <label for="organization-select">Edit an organization</label>
+          <div class="admin-inline-form">
+            <select id="organization-select">
+              <option value="">New organization</option>
+            </select>
+            <button id="new-organization" type="button">Clear form</button>
+          </div>
+        </div>
+        <form id="organization-form" class="admin-form">
+          <label>Organization name
+            <input id="organization-name" type="text" maxlength="100" required>
+          </label>
+          <label>Category
+            <select id="organization-category" required>
+              <option value="corporations">Corporations</option>
+              <option value="fingers">Fingers</option>
+              <option value="offices">Offices</option>
+              <option value="associations">Associations</option>
+            </select>
+          </label>
+          <label>Directors (one per line: role | username)
+            <textarea id="organization-directors" rows="5" placeholder="Director | username"></textarea>
+          </label>
+          <div class="admin-inline-form">
+            <button type="submit">Save organization</button>
+            <button id="delete-organization" class="danger-button" type="button" disabled>Delete organization</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+<script src="/home.js" defer></script>
+<script src="/admin.js" defer></script>
+</body>
+</html>

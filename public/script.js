@@ -12,8 +12,10 @@ const formatPrice = (price) => price.toFixed(price < 10 ? 2 : 1);
 function renderAccount() {
   const login = $("discord-login");
   const accountUser = $("account-user");
+  const adminLink = document.querySelector(".admin-nav-link");
   login.hidden = accountLoading || Boolean(account);
   accountUser.hidden = !account;
+  if (adminLink) adminLink.hidden = !account?.user?.isAdmin;
   if (account) {
     $("account-username").textContent = account.user.username;
     const avatar = $("account-avatar");
